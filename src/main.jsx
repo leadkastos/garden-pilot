@@ -7,7 +7,8 @@ import Layout from './components/layout/Layout'
 import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import FlowerTrackerPage from './pages/FlowerTrackerPage'
-import { CalendarPage, PlantsPage, BedsPage, ExpensesPage, ReportsPage, ShopPage } from './pages/StubPages'
+import PlantsPage from './pages/PlantsPage'
+import { CalendarPage, BedsPage, ExpensesPage, ReportsPage, ShopPage } from './pages/StubPages'
 
 function App() {
   return (
