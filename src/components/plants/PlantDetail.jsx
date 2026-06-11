@@ -43,7 +43,10 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
   ])
   const [newNote, setNewNote] = useState('')
   const [harvestLog, setHarvestLog] = useState([])
-  const [timeline, setTimeline] = useState(['Seed Planted', 'Sprouted'])
+  const [timeline, setTimeline] = useState([
+    { name: 'Seed Planted', completedAt: 'Apr 4, 2026 at 9:00 AM' },
+    { name: 'Sprouted',     completedAt: 'Apr 11, 2026 at 7:32 AM' },
+  ])
   const [germSprouted, setGermSprouted] = useState(plant.seedsSprouted)
   const [growAgain, setGrowAgain] = useState(null)
 
@@ -68,7 +71,15 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
   }
 
   const toggleMilestone = (m) => {
-    setTimeline(t => t.includes(m) ? t.filter(x => x !== m) : [...t, m])
+    const alreadyDone = timeline.find(x => x.name === m)
+    if (alreadyDone) {
+      setTimeline(t => t.filter(x => x.name !== m))
+    } else {
+      const now = new Date()
+      const stamp = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
+        ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true })
+      setTimeline(t => [...t, { name: m, completedAt: stamp }])
+    }
   }
 
   const totalHarvest = harvestLog.reduce((s, h) => s + parseFloat(h.weight || 0), 0)
@@ -234,11 +245,12 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
         {/* TIMELINE TAB */}
         {activeTab === 'timeline' && (
           <div className="space-y-3 fade-in">
-            <p className="text-sm text-garden-500">Tap a milestone to mark it complete</p>
+            <p className="text-sm text-garden-500">Tap a milestone to mark it complete — date and time will be logged automatically</p>
             <div className="relative">
               <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-garden-100" />
               {MILESTONES.map((m, i) => {
-                const done = timeline.includes(m)
+                const doneEntry = timeline.find(x => x.name === m)
+                const done = !!doneEntry
                 return (
                   <button key={m} onClick={() => toggleMilestone(m)}
                     className="relative flex items-center gap-4 w-full py-3 text-left group">
@@ -258,7 +270,9 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
                         : 'bg-white border-garden-100 group-hover:border-garden-200'
                     }`}>
                       <p className={`text-sm font-medium ${done ? 'text-garden-800' : 'text-garden-500'}`}>{m}</p>
-                      {done && <p className="text-xs text-garden-400 mt-0.5">Completed</p>}
+                      {done && doneEntry.completedAt && (
+                        <p className="text-xs text-garden-500 mt-0.5 font-medium">✅ {doneEntry.completedAt}</p>
+                      )}
                     </div>
                   </button>
                 )
