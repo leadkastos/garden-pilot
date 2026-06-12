@@ -309,7 +309,6 @@ export default function CommunityPage() {
 
 // ── POST CARD ────────────────────────────────────────────────────────────────
 function PostCard({ post, isExpanded, onToggleExpand, onLike, onReplyLike, onReply, onReport, formatTime, categories }) {
-  const [showReplyBox, setShowReplyBox] = useState(false)
   const [replyText, setReplyText] = useState('')
   const liked = post.likedBy.includes('me')
   const cat = categories.find(c => c.id === post.category)
@@ -318,7 +317,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReplyLike, onRep
     if (!replyText.trim()) return
     onReply(replyText.trim())
     setReplyText('')
-    setShowReplyBox(false)
   }
 
   return (
@@ -379,11 +377,10 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReplyLike, onRep
           <Heart size={15} className={liked ? 'fill-red-500' : ''} />
           {post.likes}
         </button>
-        <button onClick={() => setShowReplyBox(!showReplyBox)}
-          className="flex items-center gap-1.5 text-sm text-garden-400 hover:text-garden-600 font-medium transition-colors">
+        <span className="flex items-center gap-1.5 text-sm text-garden-400">
           <MessageCircle size={15} />
           {post.replies.length} {post.replies.length === 1 ? 'reply' : 'replies'}
-        </button>
+        </span>
       </div>
 
       {/* Replies */}
@@ -416,23 +413,20 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReplyLike, onRep
         </div>
       )}
 
-      {/* Reply box */}
-      {showReplyBox && (
-        <div className="mt-3 flex gap-2">
-          <input
-            className="input-field flex-1 text-sm"
-            placeholder="Write a reply..."
-            value={replyText}
-            onChange={e => setReplyText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleReply()}
-            autoFocus
-          />
-          <button onClick={handleReply} disabled={!replyText.trim()}
-            className="btn-primary px-3 disabled:opacity-40">
-            <Send size={14} />
-          </button>
-        </div>
-      )}
+      {/* Reply box — always visible */}
+      <div className="mt-3 flex gap-2">
+        <input
+          className="input-field flex-1 text-sm"
+          placeholder="Write a reply..."
+          value={replyText}
+          onChange={e => setReplyText(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleReply()}
+        />
+        <button onClick={handleReply} disabled={!replyText.trim()}
+          className="btn-primary px-3 disabled:opacity-40">
+          <Send size={14} />
+        </button>
+      </div>
     </div>
   )
 }
