@@ -11,7 +11,8 @@ import PlantsPage from './pages/PlantsPage'
 import JournalPage from './pages/JournalPage'
 import BedsPage from './pages/BedsPage'
 import LedgerPage from './pages/LedgerPage'
-import { CalendarPage, ReportsPage, ShopPage } from './pages/StubPages'
+import CalendarPage from './pages/CalendarPage'
+import { ReportsPage, ShopPage } from './pages/StubPages'
 
 function App() {
   return (
