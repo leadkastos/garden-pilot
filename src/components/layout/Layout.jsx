@@ -4,19 +4,19 @@ import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import {
   LayoutDashboard, Calendar, Leaf, Grid3x3, Receipt,
-  BarChart3, ShoppingBag, Bell, ChevronDown, LogOut,
-  User, Sprout, X, BookOpen
+  BarChart3, Bell, ChevronDown, LogOut,
+  User, Sprout, X, BookOpen, Users
 } from 'lucide-react'
 
 const navItems = [
-  { to: '/',          label: 'Dashboard',    icon: LayoutDashboard, end: true },
-  { to: '/calendar',  label: 'Calendar',     icon: Calendar },
-  { to: '/plants',    label: 'My Plants',    icon: Leaf },
-  { to: '/beds',      label: 'My Beds',      icon: Grid3x3 },
-  { to: '/journal',   label: 'My Journal',   icon: BookOpen },
-  { to: '/expenses',  label: 'Garden Ledger', icon: Receipt },
-  { to: '/reports',   label: 'Reports',      icon: BarChart3 },
-  { to: '/shop',      label: 'Shop',         icon: ShoppingBag },
+  { to: '/',           label: 'Dashboard',    icon: LayoutDashboard, end: true },
+  { to: '/calendar',   label: 'Calendar',     icon: Calendar },
+  { to: '/plants',     label: 'My Plants',    icon: Leaf },
+  { to: '/beds',       label: 'My Beds',      icon: Grid3x3 },
+  { to: '/journal',    label: 'My Journal',   icon: BookOpen },
+  { to: '/expenses',   label: 'Garden Ledger', icon: Receipt },
+  { to: '/reports',    label: 'Reports',      icon: BarChart3 },
+  { to: '/community',  label: 'Community',    icon: Users },
 ]
 
 const mockNotifications = [
