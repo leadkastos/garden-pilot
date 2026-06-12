@@ -264,37 +264,37 @@ export default function PlantsPage() {
 
       {/* IMPORT CONFIRM MODAL */}
       {showImportConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white rounded-t-3xl w-full max-h-[80vh] flex flex-col">
-            <div className="px-5 pt-5 pb-3 border-b border-garden-100 flex-shrink-0">
-              <h3 className="font-display text-xl font-semibold text-garden-900 mb-1">
-                Import {importPreview.length} plants
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="px-5 pt-5 pb-3 border-b border-garden-100">
+              <h3 className="font-display text-lg font-semibold text-garden-900 mb-1">
+                Import {importPreview.length} {importPreview.length === 1 ? 'plant' : 'plants'}
               </h3>
-              <p className="text-sm text-garden-500">
-                These plants from your garden beds will be added to My Plants so you can track them individually
+              <p className="text-xs text-garden-500">
+                These will be added to My Plants so you can track them individually
               </p>
             </div>
-            <div className="overflow-y-auto flex-1 px-5 py-4">
+            <div className="px-5 py-4 max-h-64 overflow-y-auto">
               <div className="space-y-2">
                 {importPreview.map((p, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 bg-garden-50 rounded-xl border border-garden-100">
-                    <span className="text-2xl">🌱</span>
+                    <span className="text-xl">🌱</span>
                     <div>
                       <p className="text-sm font-medium text-garden-800">{p.name}</p>
-                      <p className="text-xs text-garden-400">{p.bed} · {p.seedsPlanted} plants</p>
+                      <p className="text-xs text-garden-400">{p.bed} · {p.seedsPlanted} {p.seedsPlanted === 1 ? 'plant' : 'plants'}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-garden-100 flex gap-3 flex-shrink-0">
+            <div className="px-5 py-4 border-t border-garden-100 flex gap-3">
               <button onClick={() => setShowImportConfirm(false)}
-                className="btn-secondary flex-1 justify-center">
+                className="btn-secondary flex-1 justify-center py-2">
                 Cancel
               </button>
               <button onClick={confirmImport}
-                className="btn-primary flex-1 justify-center">
-                <Download size={14} /> Import all
+                className="btn-primary flex-1 justify-center py-2">
+                <Download size={14} /> Import
               </button>
             </div>
           </div>
