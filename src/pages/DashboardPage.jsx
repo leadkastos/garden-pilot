@@ -1,64 +1,224 @@
-import { useAuth } from '../lib/AuthContext'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  CheckCircle2, Circle, AlertTriangle, CloudSnow,
-  Sun, Cloud, Droplets, CalendarDays, ArrowRight,
-  Sprout, Flower2, Leaf, DollarSign, Camera,
-  TrendingUp, ChevronRight
+  CheckCircle2, Circle, AlertTriangle, Zap,
+  Leaf, Sprout, Flower2, ChevronRight,
+  DollarSign, TrendingUp, TrendingDown, Camera,
+  CalendarDays, BarChart3, Plus
 } from 'lucide-react'
 
-const mockTasks = [
-  { id:1, text:'Start cucumber seeds indoors', done:true,  badge:'Seeds',  badgeClass:'badge-soil' },
-  { id:2, text:'Water Tomato Bed',             done:false, badge:'Water',  badgeClass:'badge-blue' },
-  { id:3, text:'Bring sensitive plants indoors', done:false, badge:'Frost', badgeClass:'badge-red', urgent:true },
-  { id:4, text:'Fertilize pepper seedlings',   done:false, badge:null },
-  { id:5, text:'Check soil moisture — Herb Bed', done:false, badge:null },
-]
+// Weather API using Open-Meteo (free, no API key needed)
+const fetchWeather = async (lat, lon) => {
+  try {
+    const res = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode,windspeed_10m&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max&temperature_unit=fahrenheit&timezone=auto&forecast_days=4`
+    )
+    return await res.json()
+  } catch (e) { return null }
+}
 
-const upcoming = [
-  { date:'Mar 27', dot:'bg-garden-500', text:'Transplant tomato seedlings to Bed 1' },
-  { date:'Mar 28', dot:'bg-amber-400',  text:'Apply fertilizer — all beds' },
-  { date:'Apr 2',  dot:'bg-garden-500', text:'Start pepper seeds (round 2)' },
-  { date:'Apr 5',  dot:'bg-blue-400',   text:'Deep water all garden beds' },
-  { date:'Apr 10', dot:'bg-amber-400',  text:'Harvest window opens — Lettuce' },
-]
+const getWeatherDesc = (code) => {
+  if (code === 0) return 'Clear sky'
+  if (code <= 3) return 'Partly cloudy'
+  if (code <= 48) return 'Foggy'
+  if (code <= 67) return 'Rainy'
+  if (code <= 77) return 'Snowy'
+  if (code <= 82) return 'Showers'
+  if (code <= 99) return 'Thunderstorms'
+  return 'Mixed'
+}
 
-const beds = [
-  { name:'Tomato Bed',    size:'10×20 ft', plants:['Tomatoes ×6','Basil ×3','Peppers ×2'], color:'bg-red-50 border-red-100' },
-  { name:'Herb Garden',   size:'4×8 ft',   plants:['Rosemary ×2','Thyme ×4','Mint ×3'],   color:'bg-garden-50 border-garden-100' },
-  { name:'Spring Mix Bed',size:'6×12 ft',  plants:['Lettuce ×8','Spinach ×4','Kale ×3'],  color:'bg-blue-50 border-blue-100' },
-]
+const getWeatherEmoji = (code) => {
+  if (code === 0) return '☀️'
+  if (code <= 3) return '⛅'
+  if (code <= 48) return '🌫️'
+  if (code <= 67) return '🌧️'
+  if (code <= 77) return '❄️'
+  if (code <= 82) return '🌦️'
+  if (code <= 99) return '⛈️'
+  return '🌤️'
+}
 
-const spendBreakdown = [
-  { label:'Soil',       amount:105, pct:37, color:'bg-garden-600' },
-  { label:'Seeds',      amount:82,  pct:29, color:'bg-garden-400' },
-  { label:'Tools',      amount:60,  pct:21, color:'bg-soil-400' },
-  { label:'Fertilizer', amount:37,  pct:13, color:'bg-garden-200' },
-]
-
-const photoColors = [
-  'from-green-300 to-green-600','from-yellow-300 to-orange-500',
-  'from-red-300 to-red-600','from-emerald-300 to-teal-600'
-]
-const photoLabels = ['Tomato Bed','Peppers','Herb Garden','Spring Mix']
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 export default function DashboardPage() {
-  const { profile, user } = useAuth()
-  const firstName = profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Gardener'
-  const [tasks, setTasks] = useState(mockTasks)
+  const [userData, setUserData] = useState(null)
+  const [weather, setWeather] = useState(null)
+  const [weatherLoading, setWeatherLoading] = useState(true)
+  const [location, setLocation] = useState('Your area')
+  const [tasks, setTasks] = useState([])
 
-  const toggleTask = (id) => setTasks(t => t.map(x => x.id === id ? {...x, done:!x.done} : x))
+  // Load all data from localStorage
+  useEffect(() => {
+    const plants = JSON.parse(localStorage.getItem('gardenpilot_plants') || '[]')
+    const beds = JSON.parse(localStorage.getItem('gardenpilot_beds') || '[]')
+    const expenses = JSON.parse(localStorage.getItem('gardenpilot_expenses') || '[]')
+    const revenue = JSON.parse(localStorage.getItem('gardenpilot_revenue') || '[]')
+    const calendarEvents = JSON.parse(localStorage.getItem('gardenpilot_calendar') || '[]')
+    const journalEntries = JSON.parse(localStorage.getItem('gardenpilot_journal') || '[]')
+
+    // Today's date
+    const today = new Date().toISOString().slice(0,10)
+    const in3Days = new Date(Date.now() + 3 * 86400000).toISOString().slice(0,10)
+
+    // Today's calendar events as tasks
+    const todayEvents = calendarEvents.filter(e => e.date === today)
+    const upcomingEvents = calendarEvents
+      .filter(e => e.date > today && e.date <= in3Days)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 5)
+
+    // All upcoming events for the next 30 days
+    const next30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0,10)
+    const allUpcoming = calendarEvents
+      .filter(e => e.date >= today && e.date <= next30)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 6)
+
+    // Plant category counts
+    const vegCount = plants.filter(p =>
+      ['Vegetable','Tomato','Pepper','Cucumber','Lettuce','Carrot','Bean','Corn','Squash','Onion','Potato','Eggplant','Broccoli','Spinach','Kale'].some(v =>
+        p.category?.includes(v) || p.name?.toLowerCase().includes(v.toLowerCase())
+      )).length || plants.filter(p => p.category === 'Vegetable').length
+
+    const flowerCount = plants.filter(p =>
+      p.category === 'Flower' || ['Zinnia','Sunflower','Rose','Dahlia','Peony','Marigold'].some(f =>
+        p.name?.toLowerCase().includes(f.toLowerCase())
+      )).length
+
+    const herbCount = plants.filter(p =>
+      p.category === 'Herb' || ['Basil','Rosemary','Mint','Thyme','Sage','Cilantro','Dill'].some(h =>
+        p.name?.toLowerCase().includes(h.toLowerCase())
+      )).length
+
+    // Financial totals for current year
+    const year = new Date().getFullYear().toString()
+    const yearExpenses = expenses.filter(e => e.date?.startsWith(year))
+    const yearRevenue = revenue.filter(r => r.date?.startsWith(year))
+    const totalSpent = yearExpenses.reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
+    const totalRevenue2 = yearRevenue.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
+
+    // Plants needing attention
+    const needsBed = plants.filter(p => p.bed?.includes('Needs a bed'))
+    const unplanted = plants.filter(p => p.status === 'Unplanted')
+    const harvestReady = plants.filter(p => p.status === 'Harvesting')
+
+    // Build tasks from real data
+    const generatedTasks = []
+    todayEvents.forEach(e => {
+      generatedTasks.push({ id: `cal-${e.id}`, text: e.title, done: false, badge: 'Calendar', badgeClass: 'badge-blue', urgent: false })
+    })
+    harvestReady.forEach(p => {
+      generatedTasks.push({ id: `harvest-${p.id}`, text: `Harvest ${p.name}`, done: false, badge: 'Harvest', badgeClass: 'badge-amber', urgent: true })
+    })
+    needsBed.slice(0,2).forEach(p => {
+      generatedTasks.push({ id: `bed-${p.id}`, text: `Assign ${p.name} to a bed`, done: false, badge: 'Setup', badgeClass: 'badge-soil', urgent: false })
+    })
+    unplanted.slice(0,2).forEach(p => {
+      generatedTasks.push({ id: `plant-${p.id}`, text: `Plant your ${p.name} seeds`, done: false, badge: 'Seeds', badgeClass: 'badge-green', urgent: false })
+    })
+
+    setTasks(generatedTasks.slice(0, 6))
+
+    // Recent photos from plants
+    const photos = plants.filter(p => p.photo).map(p => ({
+      url: p.photo, label: p.name
+    }))
+
+    setUserData({
+      plants,
+      beds,
+      vegCount: vegCount || 0,
+      flowerCount: flowerCount || 0,
+      herbCount: herbCount || 0,
+      totalPlants: plants.length,
+      totalSpent,
+      totalRevenue: totalRevenue2,
+      allUpcoming,
+      journalCount: journalEntries.length,
+      recentJournal: journalEntries.slice(0, 1)[0] || null,
+      harvestReady: harvestReady.length,
+      photos,
+    })
+  }, [])
+
+  // Get weather based on user's location
+  useEffect(() => {
+    setWeatherLoading(true)
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords
+          // Reverse geocode for city name using a free API
+          try {
+            const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
+            const geoData = await geoRes.json()
+            const city = geoData.address?.city || geoData.address?.town || geoData.address?.county || 'Your area'
+            const state = geoData.address?.state_code || ''
+            setLocation(`${city}${state ? ', ' + state : ''}`)
+          } catch {}
+          const data = await fetchWeather(latitude, longitude)
+          setWeather(data)
+          setWeatherLoading(false)
+        },
+        async () => {
+          // Fallback to Nashville if geolocation denied
+          const data = await fetchWeather(36.1627, -86.7816)
+          setLocation('Franklin, TN')
+          setWeather(data)
+          setWeatherLoading(false)
+        }
+      )
+    } else {
+      fetchWeather(36.1627, -86.7816).then(data => {
+        setWeather(data)
+        setLocation('Franklin, TN')
+        setWeatherLoading(false)
+      })
+    }
+  }, [])
+
+  const toggleTask = (id) => {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
+  }
+
   const doneTasks = tasks.filter(t => t.done).length
+
+  // Weather data
+  const currentTemp = weather?.current?.temperature_2m
+  const currentCode = weather?.current?.weathercode
+  const isFrost = weather?.daily?.temperature_2m_min?.[0] <= 32
+  const isHeat = weather?.daily?.temperature_2m_max?.[0] >= 95
+
+  const today = new Date()
+
+  const formatUpcomingDate = (dateStr) => {
+    try {
+      const d = new Date(dateStr + 'T12:00:00')
+      const diff = Math.floor((d - today) / 86400000)
+      if (diff === 0) return 'Today'
+      if (diff === 1) return 'Tomorrow'
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    } catch { return dateStr }
+  }
+
+  const upcomingDotColor = (type) => {
+    if (type === 'plant') return 'bg-garden-500'
+    if (type === 'harvest') return 'bg-amber-400'
+    if (type === 'task') return 'bg-blue-400'
+    return 'bg-purple-400'
+  }
 
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="fade-in stagger-1">
         <h1 className="font-display text-3xl font-semibold text-garden-900">
-          Welcome back, {firstName}
+          Welcome back! 👋
         </h1>
-        <p className="text-garden-500 text-sm mt-1">Here's what to focus on today — {new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})}</p>
+        <p className="text-garden-500 text-sm mt-1">
+          Here's what to focus on today — {today.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' })}
+        </p>
       </div>
 
       {/* Row 1: Tasks + Weather + Upcoming */}
@@ -72,68 +232,113 @@ export default function DashboardPage() {
               {doneTasks}/{tasks.length} done
             </span>
           </div>
-          <div className="space-y-1">
-            {tasks.map(task => (
-              <button key={task.id} onClick={() => toggleTask(task.id)}
-                className={`w-full flex items-center gap-3 py-2.5 px-2 rounded-xl text-left transition-colors hover:bg-garden-50 ${task.done ? 'opacity-60' : ''}`}>
-                {task.done
-                  ? <CheckCircle2 size={17} className="text-garden-500 flex-shrink-0" />
-                  : <Circle size={17} className={`flex-shrink-0 ${task.urgent ? 'text-red-400' : 'text-garden-300'}`} />
-                }
-                <span className={`text-sm flex-1 ${task.done ? 'line-through text-garden-400' : task.urgent ? 'text-red-700 font-medium' : 'text-garden-800'}`}>
-                  {task.text}
-                </span>
-                {task.badge && (
-                  <span className={`${task.badgeClass} badge text-[10px]`}>{task.badge}</span>
-                )}
-              </button>
-            ))}
-          </div>
+          {tasks.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-garden-400 text-sm">No tasks for today!</p>
+              <p className="text-garden-300 text-xs mt-1">Add events to your calendar</p>
+              <Link to="/calendar" className="btn-primary text-xs mt-3 mx-auto">
+                <Plus size={12} /> Add to Calendar
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {tasks.map(task => (
+                <button key={task.id} onClick={() => toggleTask(task.id)}
+                  className={`w-full flex items-center gap-3 py-2.5 px-2 rounded-xl text-left transition-colors hover:bg-garden-50 ${task.done ? 'opacity-60' : ''}`}>
+                  {task.done
+                    ? <CheckCircle2 size={17} className="text-garden-500 flex-shrink-0" />
+                    : <Circle size={17} className={`flex-shrink-0 ${task.urgent ? 'text-red-400' : 'text-garden-300'}`} />
+                  }
+                  <span className={`text-sm flex-1 ${task.done ? 'line-through text-garden-400' : task.urgent ? 'text-red-700 font-medium' : 'text-garden-800'}`}>
+                    {task.text}
+                  </span>
+                  {task.badge && (
+                    <span className={`${task.badgeClass} badge text-[10px]`}>{task.badge}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
           <Link to="/calendar" className="mt-3 w-full btn-ghost justify-center text-xs border border-garden-100 rounded-xl py-2">
-            View full schedule <ArrowRight size={12} />
+            View full calendar <ChevronRight size={12} />
           </Link>
         </div>
 
         {/* Weather */}
         <div className="card fade-in stagger-3 bg-gradient-to-br from-garden-50 to-blue-50 border-garden-200">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <p className="text-xs text-garden-500 font-medium mb-1">Weather · Franklin, TN</p>
-              <div className="flex items-baseline gap-1">
-                <span className="font-display text-5xl font-medium text-garden-900">41°</span>
-                <span className="text-garden-500 text-sm">F</span>
+          <p className="text-xs text-garden-500 font-medium mb-1">Weather · {location}</p>
+          {weatherLoading ? (
+            <div className="flex items-center gap-2 py-4">
+              <div className="w-5 h-5 border-2 border-garden-400 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm text-garden-500">Loading weather...</span>
+            </div>
+          ) : weather ? (
+            <>
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-display text-5xl font-medium text-garden-900">
+                      {Math.round(currentTemp || 0)}°
+                    </span>
+                    <span className="text-garden-500 text-sm">F</span>
+                  </div>
+                  <p className="text-garden-500 text-xs mt-1">
+                    {getWeatherEmoji(currentCode)} {getWeatherDesc(currentCode)}
+                  </p>
+                </div>
+                <span className="text-5xl">{getWeatherEmoji(currentCode)}</span>
               </div>
-              <p className="text-garden-500 text-xs mt-1">Partly cloudy</p>
-            </div>
-            <div className="w-14 h-14 relative">
-              <div className="w-9 h-9 bg-yellow-300 rounded-full absolute top-1 left-1" />
-              <div className="w-11 h-6 bg-slate-200 rounded-full absolute bottom-1 right-0" />
-            </div>
-          </div>
 
-          {/* Frost Alert */}
-          <div className="bg-white border border-orange-200 rounded-xl p-3 mb-3">
-            <div className="flex items-start gap-2">
-              <AlertTriangle size={15} className="text-orange-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-orange-800">Frost warning tonight</p>
-                <p className="text-xs text-orange-600 mt-0.5">Low: 31°F · Bring sensitive plants indoors</p>
-              </div>
-            </div>
-          </div>
+              {/* Frost or Heat Alert */}
+              {isFrost && (
+                <div className="bg-white border border-blue-200 rounded-xl p-3 mb-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={15} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-800">Frost warning tonight</p>
+                      <p className="text-xs text-blue-600 mt-0.5">
+                        Low: {Math.round(weather.daily.temperature_2m_min[0])}°F · Bring sensitive plants inside
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {isHeat && !isFrost && (
+                <div className="bg-white border border-orange-200 rounded-xl p-3 mb-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle size={15} className="text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-orange-800">Heat warning</p>
+                      <p className="text-xs text-orange-600 mt-0.5">
+                        High: {Math.round(weather.daily.temperature_2m_max[0])}°F · Water plants early morning
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-          {/* 3-day */}
-          <div className="grid grid-cols-3 gap-2">
-            {[['Wed','48°','bg-yellow-100 text-yellow-800','Sunny'],
-              ['Thu','55°','bg-yellow-100 text-yellow-800','Clear'],
-              ['Fri','52°','bg-slate-100 text-slate-600','Cloudy']].map(([day,temp,cls,desc]) => (
-              <div key={day} className="bg-white rounded-xl p-2 text-center border border-garden-100">
-                <p className="text-[11px] text-garden-400">{day}</p>
-                <p className="font-display text-lg font-medium text-garden-900">{temp}</p>
-                <p className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${cls} mt-1`}>{desc}</p>
+              {/* 3-day forecast */}
+              <div className="grid grid-cols-3 gap-2">
+                {[1,2,3].map(i => {
+                  const d = new Date(today)
+                  d.setDate(d.getDate() + i)
+                  const code = weather.daily?.weathercode?.[i] || 0
+                  const high = Math.round(weather.daily?.temperature_2m_max?.[i] || 0)
+                  const low = Math.round(weather.daily?.temperature_2m_min?.[i] || 0)
+                  return (
+                    <div key={i} className="bg-white rounded-xl p-2 text-center border border-garden-100">
+                      <p className="text-[11px] text-garden-400">{DAYS[d.getDay()]}</p>
+                      <p className="text-lg">{getWeatherEmoji(code)}</p>
+                      <p className="font-display text-sm font-medium text-garden-900">{high}°</p>
+                      <p className="text-[10px] text-garden-400">{low}°</p>
+                    </div>
+                  )
+                })}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <p className="text-sm text-garden-400">Weather unavailable</p>
+          )}
         </div>
 
         {/* Upcoming */}
@@ -144,19 +349,30 @@ export default function DashboardPage() {
               Calendar <ChevronRight size={11} />
             </Link>
           </div>
-          <div className="space-y-2">
-            {upcoming.map((item, i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-xl hover:bg-garden-50 transition-colors">
-                <div className="text-[11px] font-medium text-garden-500 w-10 flex-shrink-0">{item.date}</div>
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${item.dot}`} />
-                <p className="text-xs text-garden-700 leading-snug">{item.text}</p>
-              </div>
-            ))}
-          </div>
+          {userData?.allUpcoming?.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-garden-400 text-sm">No upcoming events</p>
+              <Link to="/calendar" className="btn-primary text-xs mt-3 mx-auto">
+                <Plus size={12} /> Add Event
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {userData?.allUpcoming?.map((event, i) => (
+                <div key={i} className="flex items-center gap-3 p-2 rounded-xl hover:bg-garden-50 transition-colors">
+                  <div className="text-[11px] font-medium text-garden-500 w-16 flex-shrink-0">
+                    {formatUpcomingDate(event.date)}
+                  </div>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${upcomingDotColor(event.type)}`} />
+                  <p className="text-xs text-garden-700 leading-snug truncate">{event.title}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Row 2: Garden Categories */}
+      {/* Row 2: My Garden Categories */}
       <div className="card fade-in stagger-3">
         <div className="flex items-center justify-between mb-4">
           <h2 className="section-title mb-0">My garden</h2>
@@ -164,9 +380,9 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-3 gap-4">
           {[
-            { icon: Sprout,  label:'Vegetables', count:14, color:'bg-garden-50 border-garden-200', iconColor:'text-garden-600', to:'/plants' },
-            { icon: Flower2, label:'Flowers',    count:6,  color:'bg-pink-50 border-pink-200',     iconColor:'text-pink-500',   to:'/plants' },
-            { icon: Leaf,    label:'Herbs',      count:9,  color:'bg-emerald-50 border-emerald-200', iconColor:'text-emerald-600', to:'/plants' },
+            { icon: Sprout,  label:'Vegetables', count: userData?.vegCount || 0,     color:'bg-garden-50 border-garden-200',   iconColor:'text-garden-600',  to:'/plants' },
+            { icon: Flower2, label:'Flowers',    count: userData?.flowerCount || 0,  color:'bg-pink-50 border-pink-200',       iconColor:'text-pink-500',    to:'/plants' },
+            { icon: Leaf,    label:'Herbs',      count: userData?.herbCount || 0,    color:'bg-emerald-50 border-emerald-200', iconColor:'text-emerald-600', to:'/plants' },
           ].map(({ icon: Icon, label, count, color, iconColor, to }) => (
             <Link key={label} to={to}
               className={`border rounded-2xl p-4 text-center hover:shadow-card-hover transition-all duration-200 ${color}`}>
@@ -191,96 +407,107 @@ export default function DashboardPage() {
         {/* Garden Beds */}
         <div className="card lg:col-span-2 fade-in stagger-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title mb-0">Garden beds</h2>
+            <h2 className="section-title mb-0">My beds</h2>
             <Link to="/beds" className="btn-ghost text-xs py-1.5">All beds <ChevronRight size={11} /></Link>
           </div>
-          <div className="space-y-3">
-            {beds.map(bed => (
-              <div key={bed.name} className={`border rounded-xl p-3 ${bed.color}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-garden-900">{bed.name}</span>
-                  <span className="text-xs text-garden-400">{bed.size}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {bed.plants.map(p => (
-                    <span key={p} className="text-[11px] bg-white text-garden-700 px-2 py-0.5 rounded-full border border-garden-200 font-medium">
-                      {p}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          {!userData?.beds?.length ? (
+            <div className="text-center py-8">
+              <p className="text-garden-400 text-sm">No beds created yet</p>
+              <Link to="/beds" className="btn-primary text-xs mt-3 mx-auto">
+                <Plus size={12} /> Create a bed
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {userData.beds.slice(0,3).map(bed => {
+                const totalPlants = bed.plants?.reduce((s, p) => s + (p.placed?.length || 0), 0) || 0
+                return (
+                  <div key={bed.id} className="border rounded-xl p-3 bg-garden-50 border-garden-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-garden-900">{bed.name}</span>
+                      <span className="text-xs text-garden-400">{bed.length}ft × {bed.width}ft</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {bed.plants?.filter(p => p.placed?.length > 0).map(p => (
+                        <span key={p.id} className="text-[11px] bg-white text-garden-700 px-2 py-0.5 rounded-full border border-garden-200 font-medium">
+                          {p.emoji} {p.name} ×{p.placed.length}
+                        </span>
+                      ))}
+                      {totalPlants === 0 && <span className="text-xs text-garden-400">No plants placed yet</span>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Spend */}
+        {/* Garden Spend */}
         <div className="card fade-in stagger-5">
           <div className="flex items-center justify-between mb-1">
-            <h2 className="section-title mb-0">2026 spend</h2>
+            <h2 className="section-title mb-0">{new Date().getFullYear()} spend</h2>
             <Link to="/expenses" className="btn-ghost text-xs py-1.5">Details <ChevronRight size={11} /></Link>
           </div>
-          <div className="mb-4">
-            <div className="font-display text-3xl font-semibold text-garden-900">$284.50</div>
-            <div className="text-xs text-garden-400 mt-0.5">across 4 categories</div>
+          <div className="mb-3">
+            <div className="font-display text-3xl font-semibold text-garden-900">
+              ${(userData?.totalSpent || 0).toFixed(2)}
+            </div>
+            <div className="text-xs text-garden-400 mt-0.5">total spent this year</div>
           </div>
-          <div className="space-y-2.5">
-            {spendBreakdown.map(({ label, amount, pct, color }) => (
-              <div key={label}>
-                <div className="flex justify-between text-xs text-garden-600 mb-1">
-                  <span>{label}</span><span>${amount}</span>
-                </div>
-                <div className="h-1.5 bg-garden-100 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${color}`} style={{width:`${pct}%`}} />
-                </div>
+          {userData?.totalRevenue > 0 && (
+            <div className="p-3 bg-garden-50 rounded-xl border border-garden-100 mb-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-garden-600">Revenue earned</span>
+                <span className="text-sm font-medium text-garden-700">+${(userData.totalRevenue).toFixed(2)}</span>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Row 4: Photos + Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Photos */}
-        <div className="card lg:col-span-2 fade-in stagger-5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="section-title mb-0">Recent photos</h2>
-            <button className="btn-ghost text-xs py-1.5">View all <ChevronRight size={11} /></button>
-          </div>
-          <div className="grid grid-cols-4 gap-2">
-            {photoColors.map((gradient, i) => (
-              <div key={i} className={`aspect-square rounded-xl bg-gradient-to-br ${gradient} relative overflow-hidden group cursor-pointer`}>
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                <div className="absolute bottom-1.5 left-1.5 right-1.5">
-                  <span className="text-[10px] bg-black/40 text-white px-1.5 py-0.5 rounded-md font-medium">
-                    {photoLabels[i]}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="space-y-3 fade-in stagger-6">
-          {[
-            { icon: Leaf,        label:'Total plants',  value:'29',    sub:'+3 this month',  color:'text-garden-600', bg:'bg-garden-50' },
-            { icon: CalendarDays,label:'Tasks today',   value:'4',     sub:'1 completed',    color:'text-blue-600',   bg:'bg-blue-50' },
-            { icon: TrendingUp,  label:'Next harvest',  value:'Apr 10',sub:'Lettuce ready',  color:'text-amber-600',  bg:'bg-amber-50' },
-          ].map(({ icon: Icon, label, value, sub, color, bg }) => (
-            <div key={label} className="card flex items-center gap-4">
-              <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
-                <Icon size={18} className={color} />
-              </div>
-              <div>
-                <div className="font-display text-xl font-semibold text-garden-900">{value}</div>
-                <div className="text-xs text-garden-400">{label}</div>
-                <div className={`text-[11px] font-medium ${color}`}>{sub}</div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-garden-600">Net cost</span>
+                <span className="text-sm font-medium text-garden-900">
+                  ${Math.abs(userData.totalSpent - userData.totalRevenue).toFixed(2)}
+                </span>
               </div>
             </div>
-          ))}
+          )}
+          <Link to="/expenses" className="w-full btn-secondary text-xs justify-center py-2">
+            <Plus size={12} /> Add expense
+          </Link>
         </div>
       </div>
+
+      {/* Row 4: Quick Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 fade-in stagger-6">
+        {[
+          { icon: Leaf,        label:'Total plants',    value: userData?.totalPlants || 0,         sub: userData?.harvestReady > 0 ? `${userData.harvestReady} ready to harvest` : 'across all categories', color:'text-garden-600', bg:'bg-garden-50', to:'/plants' },
+          { icon: CalendarDays,label:'Today\'s events', value: tasks.length,                        sub: `${doneTasks} completed`,                color:'text-blue-600',   bg:'bg-blue-50',   to:'/calendar' },
+          { icon: BarChart3,   label:'Journal entries', value: userData?.journalCount || 0,          sub: 'this season',                           color:'text-purple-600', bg:'bg-purple-50', to:'/journal' },
+          { icon: DollarSign,  label:'Net cost',        value: `$${Math.abs((userData?.totalSpent||0) - (userData?.totalRevenue||0)).toFixed(0)}`, sub: userData?.totalRevenue > 0 ? 'after revenue' : 'this season', color:'text-amber-600', bg:'bg-amber-50', to:'/expenses' },
+        ].map(({ icon: Icon, label, value, sub, color, bg, to }) => (
+          <Link key={label} to={to} className="card flex items-center gap-4 hover:shadow-card-hover transition-all">
+            <div className={`w-10 h-10 ${bg} rounded-xl flex items-center justify-center flex-shrink-0`}>
+              <Icon size={18} className={color} />
+            </div>
+            <div className="min-w-0">
+              <div className="font-display text-xl font-semibold text-garden-900">{value}</div>
+              <div className="text-xs text-garden-400 leading-tight">{label}</div>
+              <div className={`text-[11px] font-medium ${color} truncate`}>{sub}</div>
+            </div>
+          </Link>
+        ))}
+      </div>
+
+      {/* Recent Journal Entry */}
+      {userData?.recentJournal && (
+        <div className="card fade-in bg-garden-50 border-garden-200">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="section-title mb-0 text-sm">Latest journal entry</h2>
+            <Link to="/journal" className="text-xs text-garden-500 hover:text-garden-700">
+              View all <ChevronRight size={11} className="inline" />
+            </Link>
+          </div>
+          <p className="text-xs text-garden-500 mb-1">{userData.recentJournal.dateDisplay} · {userData.recentJournal.time}</p>
+          <p className="text-sm text-garden-700 line-clamp-2">{userData.recentJournal.text}</p>
+        </div>
+      )}
     </div>
   )
 }
