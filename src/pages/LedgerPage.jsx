@@ -12,8 +12,24 @@ export default function LedgerPage() {
   const [activeTab, setActiveTab] = useState('All')
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showRevenueModal, setShowRevenueModal] = useState(false)
-  const [pendingPlantImport, setPendingPlantImport] = useState(null)
+  const [pendingPlantImport, setPendingPlantImport] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gardenpilot_pending_import')
+      return saved ? JSON.parse(saved) : null
+    } catch { return null }
+  })
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString())
+
+  // Save pending import to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      if (pendingPlantImport) {
+        localStorage.setItem('gardenpilot_pending_import', JSON.stringify(pendingPlantImport))
+      } else {
+        localStorage.removeItem('gardenpilot_pending_import')
+      }
+    } catch (e) { console.error('Error saving pending import:', e) }
+  }, [pendingPlantImport])
 
   // Load from localStorage
   useEffect(() => {
@@ -222,7 +238,10 @@ export default function LedgerPage() {
             </div>
           </div>
           <div className="flex gap-2 mt-3">
-            <button onClick={() => setPendingPlantImport(null)}
+            <button onClick={() => {
+              setPendingPlantImport(null)
+              localStorage.removeItem('gardenpilot_pending_import')
+            }}
               className="flex-1 py-2 text-xs font-medium text-amber-700 bg-white border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
               Not now
             </button>
