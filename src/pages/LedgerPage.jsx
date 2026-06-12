@@ -67,16 +67,21 @@ export default function LedgerPage() {
         name: pendingPlantImport.itemName,
         variety: '',
         category: 'Vegetable',
-        status: 'Seeded',
+        // Unplanted = seeds purchased but not yet in the ground
+        status: 'Unplanted',
         health: 'Good',
         bed: '⚠️ Needs a bed',
-        seedsPlanted: pendingPlantImport.seedCount || 0,
+        // Seeds in pack is informational only — NOT seeds planted
+        seedsInPack: pendingPlantImport.seedCount || 0,
+        seedsPlanted: 0,
         seedsSprouted: 0,
-        nextAction: 'Watch for Sprouts',
-        daysToHarvest: 60,
+        nextAction: 'Plant your seeds when ready',
+        daysToHarvest: 0,
         photo: null,
         germRate: 0,
+        plantedDate: null,
         seedSource: pendingPlantImport.store || '',
+        importedFromLedger: true,
       }
       localStorage.setItem('gardenpilot_plants', JSON.stringify([...plants, newPlant]))
     } catch (e) { console.error('Error importing to plants:', e) }
