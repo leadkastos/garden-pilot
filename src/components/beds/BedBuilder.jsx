@@ -70,8 +70,15 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
   }
 
   const duplicatePlantIcon = (plantId) => {
-    // Just adds another available icon — user drags it to place it
-    setPlants(prev => prev.map(p => p.id === plantId ? { ...p, _pendingPlace: true } : p))
+    // Adds a new unplaced copy — shown in palette, user drags it to the grid
+    const source = plants.find(p => p.id === plantId)
+    if (!source) return
+    const newPlant = {
+      ...source,
+      id: `plant-${++plantIdCounter}`,
+      placed: []
+    }
+    setPlants(prev => [...prev, newPlant])
   }
 
   const handleCellDrop = (row, col) => {
@@ -234,11 +241,6 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
                         <p className="text-sm font-medium text-garden-800">{plant.name}</p>
                         <p className="text-xs text-garden-400">{plant.placed.length} placed in bed</p>
                       </div>
-                      <button onClick={() => duplicatePlantIcon(plant.id)}
-                        className="w-7 h-7 rounded-lg bg-garden-100 hover:bg-garden-200 flex items-center justify-center text-garden-600 font-bold text-sm transition-colors"
-                        title="Drag another one">
-                        +
-                      </button>
                       <button onClick={() => removePlant(plant.id)}
                         className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors">
                         <Trash2 size={11} className="text-red-400" />
