@@ -13,7 +13,7 @@ import BedsPage from './pages/BedsPage'
 import LedgerPage from './pages/LedgerPage'
 import CalendarPage from './pages/CalendarPage'
 import ReportsPage from './pages/ReportsPage'
-import { ShopPage } from './pages/StubPages'
+import CommunityPage from './pages/CommunityPage'
 
 function App() {
   return (
@@ -27,7 +27,7 @@ function App() {
           <Route path="journal" element={<JournalPage />} />
          <Route path="expenses" element={<LedgerPage />} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="shop" element={<ShopPage />} />
+          <Route path="community" element={<CommunityPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="profile/flowers" element={<FlowerTrackerPage />} />
         </Route>
