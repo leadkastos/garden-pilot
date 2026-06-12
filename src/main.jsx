@@ -8,7 +8,8 @@ import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import FlowerTrackerPage from './pages/FlowerTrackerPage'
 import PlantsPage from './pages/PlantsPage'
-import { CalendarPage, BedsPage, ExpensesPage, ReportsPage, ShopPage } from './pages/StubPages'
+import BedsPage from './pages/BedsPage'
+import { CalendarPage, ExpensesPage, ReportsPage, ShopPage } from './pages/StubPages'
 
 function App() {
   return (
