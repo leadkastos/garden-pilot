@@ -5,6 +5,7 @@ import AddPlantWizard from '../components/plants/AddPlantWizard'
 import PlantDetail from '../components/plants/PlantDetail'
 
 const STATUS_COLORS = {
+  Unplanted:  { bg: 'bg-slate-100',   text: 'text-slate-600',   dot: 'bg-slate-400' },
   Seeded:     { bg: 'bg-amber-100',   text: 'text-amber-800',   dot: 'bg-amber-400' },
   Sprouting:  { bg: 'bg-yellow-100',  text: 'text-yellow-800',  dot: 'bg-yellow-400' },
   Seedling:   { bg: 'bg-lime-100',    text: 'text-lime-800',    dot: 'bg-lime-400' },
@@ -257,7 +258,8 @@ export default function PlantsPage() {
         <div className="space-y-3">
           {filtered.map(plant => (
             <PlantCard key={plant.id} plant={plant} statusColors={STATUS_COLORS}
-              onClick={() => setSelectedPlant(plant)} />
+              onClick={() => setSelectedPlant(plant)}
+              onUpdate={updatePlant} />
           ))}
         </div>
       )}
