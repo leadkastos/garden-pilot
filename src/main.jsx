@@ -9,7 +9,8 @@ import ProfilePage from './pages/ProfilePage'
 import FlowerTrackerPage from './pages/FlowerTrackerPage'
 import PlantsPage from './pages/PlantsPage'
 import BedsPage from './pages/BedsPage'
-import { CalendarPage, ExpensesPage, ReportsPage, ShopPage } from './pages/StubPages'
+import LedgerPage from './pages/LedgerPage'
+import { CalendarPage, ReportsPage, ShopPage } from './pages/StubPages'
 
 function App() {
   return (
@@ -20,7 +21,7 @@ function App() {
           <Route path="calendar" element={<CalendarPage />} />
           <Route path="plants" element={<PlantsPage />} />
           <Route path="beds" element={<BedsPage />} />
-          <Route path="expenses" element={<ExpensesPage />} />
+         <Route path="expenses" element={<LedgerPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="shop" element={<ShopPage />} />
           <Route path="profile" element={<ProfilePage />} />
