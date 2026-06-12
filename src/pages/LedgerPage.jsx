@@ -12,24 +12,13 @@ export default function LedgerPage() {
   const [activeTab, setActiveTab] = useState('All')
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showRevenueModal, setShowRevenueModal] = useState(false)
-  const [pendingPlantImport, setPendingPlantImport] = useState(() => {
+  const [trackedExpenses, setTrackedExpenses] = useState(() => {
     try {
-      const saved = localStorage.getItem('gardenpilot_pending_import')
-      return saved ? JSON.parse(saved) : null
-    } catch { return null }
+      const saved = localStorage.getItem('gardenpilot_tracked_expenses')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
   })
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString())
-
-  // Save pending import to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      if (pendingPlantImport) {
-        localStorage.setItem('gardenpilot_pending_import', JSON.stringify(pendingPlantImport))
-      } else {
-        localStorage.removeItem('gardenpilot_pending_import')
-      }
-    } catch (e) { console.error('Error saving pending import:', e) }
-  }, [pendingPlantImport])
 
   // Load from localStorage
   useEffect(() => {
@@ -59,10 +48,6 @@ export default function LedgerPage() {
     const newExpense = { ...expense, id: Date.now() }
     setExpenses(prev => [newExpense, ...prev])
     setShowExpenseModal(false)
-    // If it's a plant/seed purchase, show the yellow banner
-    if (expense.category === 'Plants & Seeds') {
-      setPendingPlantImport(newExpense)
-    }
   }
 
   const addRevenue = (rev) => {
@@ -73,22 +58,20 @@ export default function LedgerPage() {
   const deleteExpense = (id) => setExpenses(prev => prev.filter(e => e.id !== id))
   const deleteRevenue = (id) => setRevenue(prev => prev.filter(r => r.id !== id))
 
-  const handleImportToPlants = () => {
-    if (!pendingPlantImport) return
+  const handleImportToPlants = (expense) => {
+    if (!expense) return
     try {
       const savedPlants = localStorage.getItem('gardenpilot_plants')
       const plants = savedPlants ? JSON.parse(savedPlants) : []
       const newPlant = {
         id: Date.now(),
-        name: pendingPlantImport.itemName,
+        name: expense.itemName,
         variety: '',
         category: 'Vegetable',
-        // Unplanted = seeds purchased but not yet in the ground
         status: 'Unplanted',
         health: 'Good',
         bed: '⚠️ Needs a bed',
-        // Seeds in pack is informational only — NOT seeds planted
-        seedsInPack: pendingPlantImport.seedCount || 0,
+        seedsInPack: expense.seedCount || 0,
         seedsPlanted: 0,
         seedsSprouted: 0,
         nextAction: 'Plant your seeds when ready',
@@ -96,12 +79,14 @@ export default function LedgerPage() {
         photo: null,
         germRate: 0,
         plantedDate: null,
-        seedSource: pendingPlantImport.store || '',
+        seedSource: expense.store || '',
         importedFromLedger: true,
       }
       localStorage.setItem('gardenpilot_plants', JSON.stringify([...plants, newPlant]))
+      const newTracked = [...trackedExpenses, expense.id]
+      setTrackedExpenses(newTracked)
+      localStorage.setItem('gardenpilot_tracked_expenses', JSON.stringify(newTracked))
     } catch (e) { console.error('Error importing to plants:', e) }
-    setPendingPlantImport(null)
   }
 
   // Filter by year
@@ -223,36 +208,6 @@ export default function LedgerPage() {
         </div>
       )}
 
-      {/* Pending plant import banner */}
-      {pendingPlantImport && (
-        <div className="card bg-amber-50 border-amber-200">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl flex-shrink-0">🌱</span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-amber-900">
-                You added <span className="font-bold">{pendingPlantImport.itemName}</span> to your expenses
-              </p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Would you like to start tracking this in My Plants?
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button onClick={() => {
-              setPendingPlantImport(null)
-              localStorage.removeItem('gardenpilot_pending_import')
-            }}
-              className="flex-1 py-2 text-xs font-medium text-amber-700 bg-white border border-amber-200 rounded-xl hover:bg-amber-50 transition-colors">
-              Not now
-            </button>
-            <button onClick={handleImportToPlants}
-              className="flex-1 py-2 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-colors">
-              ✅ Yes, add to My Plants
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="flex gap-2">
         {TABS.map(tab => (
@@ -292,7 +247,9 @@ export default function LedgerPage() {
           ) : (
             filteredExpenses.map(expense => (
               <LedgerEntry key={expense.id} entry={expense} type="expense"
-                onDelete={() => deleteExpense(expense.id)} />
+                onDelete={() => deleteExpense(expense.id)}
+                isTracked={trackedExpenses.includes(expense.id)}
+                onImportToPlants={() => handleImportToPlants(expense)} />
             ))
           )}
         </div>
