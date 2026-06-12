@@ -145,16 +145,19 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
                 <div>
                   <p className="text-xs font-medium text-garden-700 mb-1">Garden Pilot Insight</p>
                   <p className="text-sm text-garden-600">
-                    You planted {plant.seedsPlanted} seeds and {germSprouted} sprouted — a {germPct}% success rate.
-                    {plant.daysToHarvest > 0
-                      ? ` First harvest is expected in approximately ${plant.daysToHarvest} days.`
-                      : ' This plant is ready to harvest!'}
+                    {plant.status === 'Unplanted'
+                      ? `${plant.name} seeds are purchased and ready to plant. ${plant.seedsInPack > 0 ? `You have ${plant.seedsInPack} seeds in the pack. ` : ''}Click "Mark as Planted" when you put them in the ground.`
+                      : plant.seedsPlanted > 0
+                        ? `You planted ${plant.seedsPlanted} seeds and ${germSprouted} sprouted — a ${germPct}% success rate.${plant.daysToHarvest > 0 ? ` First harvest is expected in approximately ${plant.daysToHarvest} days.` : ' This plant is ready to harvest!'}`
+                        : `${plant.name} has been planted. Update your seed count and germination as your garden grows.`
+                    }
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Germination */}
+            {/* Germination — only show when actually planted */}
+            {plant.status !== 'Unplanted' && (
             <div className="card">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-medium text-garden-900">How many seeds sprouted?</h3>
@@ -183,6 +186,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
                   style={{ width: `${germPct}%` }} />
               </div>
             </div>
+            )}
 
             {/* Health */}
             <div className="card">
