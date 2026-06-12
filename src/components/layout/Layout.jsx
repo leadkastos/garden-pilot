@@ -13,7 +13,7 @@ const navItems = [
   { to: '/calendar',  label: 'Calendar',     icon: Calendar },
   { to: '/plants',    label: 'My Plants',    icon: Leaf },
   { to: '/beds',      label: 'Garden Beds',  icon: Grid3x3 },
-  { to: '/expenses',  label: 'Expenses',     icon: Receipt },
+  { to: '/expenses',  label: 'Garden Ledger', icon: Receipt },
   { to: '/reports',   label: 'Reports',      icon: BarChart3 },
   { to: '/shop',      label: 'Shop',         icon: ShoppingBag },
 ]
