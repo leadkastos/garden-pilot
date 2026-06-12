@@ -139,7 +139,13 @@ export default function AddPlantWizard({ onSave, onCancel }) {
               <label className="block text-sm font-medium text-garden-700 mb-2">Plant type *</label>
               <div className="grid grid-cols-3 gap-2">
                 {CATEGORIES.map(c => (
-                  <button key={c.label} onClick={() => update('category', c.label)}
+                  <button key={c.label} onClick={() => {
+                    update('category', c.label)
+                    // Auto-fill name only if empty or previously auto-filled from a category
+                    if (!data.name || CATEGORIES.some(cat => cat.label === data.name)) {
+                      update('name', c.label)
+                    }
+                  }}
                     className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
                       data.category === c.label
                         ? 'border-garden-500 bg-garden-50'
