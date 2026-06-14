@@ -201,6 +201,8 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
   const [showPlantPicker, setShowPlantPicker] = useState(false)
   const [dragging, setDragging] = useState(null)
   const [dragOver, setDragOver] = useState(null)
+  const [selectedPlant, setSelectedPlant] = useState(null) // for mobile tap mode
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024
 
   const cols = Math.min(parseInt(length) * 2 || 0, 24)
   const rows = Math.min(parseInt(width) * 2 || 0, 16)
@@ -356,7 +358,7 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
           <div className="space-y-4 fade-in">
             <div>
               <h2 className="font-display text-2xl font-semibold text-garden-900 mb-1">Plant your {name}</h2>
-              <p className="text-garden-500 text-sm">Add plants then drag them into position on the grid</p>
+              <p className="text-garden-500 text-sm">{isMobile ? 'Tap a plant to select it, then tap cells in the grid to place it' : 'Add plants then drag them into position on the grid'}</p>
             </div>
 
             {/* Plant Palette */}
@@ -372,16 +374,27 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
               ) : (
                 <div className="space-y-2">
                   {plants.map(plant => (
-                    <div key={plant.id} className="flex items-center gap-3 p-2 bg-garden-50 rounded-xl border border-garden-100">
-                      <div draggable onDragStart={() => setDragging({ plantId: plant.id, fromPos: null })}
-                        className="text-2xl cursor-grab active:cursor-grabbing select-none" title="Drag to place in bed">
+                    <div key={plant.id}
+                      onClick={() => isMobile && setSelectedPlant(selectedPlant?.id === plant.id ? null : plant)}
+                      className={`flex items-center gap-3 p-2 rounded-xl border transition-all ${
+                        isMobile && selectedPlant?.id === plant.id
+                          ? 'bg-garden-100 border-garden-500 ring-2 ring-garden-400'
+                          : 'bg-garden-50 border-garden-100'
+                      } ${isMobile ? 'cursor-pointer active:scale-95' : ''}`}>
+                      <div draggable={!isMobile}
+                        onDragStart={!isMobile ? () => setDragging({ plantId: plant.id, fromPos: null }) : undefined}
+                        className={`text-2xl select-none ${!isMobile ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                         {plant.emoji}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-garden-800">{plant.name}</p>
-                        <p className="text-xs text-garden-400">{plant.placed.length} placed in bed</p>
+                        <p className="text-xs text-garden-400">
+                          {isMobile && selectedPlant?.id === plant.id
+                            ? '✅ Selected — tap grid to place'
+                            : `${plant.placed.length} placed in bed`}
+                        </p>
                       </div>
-                      <button onClick={() => removePlant(plant.id)}
+                      <button onClick={e => { e.stopPropagation(); removePlant(plant.id) }}
                         className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors">
                         <Trash2 size={11} className="text-red-400" />
                       </button>
@@ -396,7 +409,7 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
               <div className="card overflow-x-auto">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-medium text-garden-900 text-sm">{name} — {length}ft × {width}ft</h3>
-                  <p className="text-xs text-garden-400">Drag plants onto the grid</p>
+                  <p className="text-xs text-garden-400">{isMobile ? (selectedPlant ? `Tap to place ${selectedPlant.emoji} ${selectedPlant.name}` : 'Tap a plant above first') : 'Drag plants onto the grid'}</p>
                 </div>
                 <div className="overflow-x-auto">
                   <div className="inline-block">
@@ -406,25 +419,48 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
                         Array(cols).fill(null).map((__, ci) => {
                           const cell = grid[ri]?.[ci]
                           const isOver = dragOver?.row === ri && dragOver?.col === ci
+                          const handleCellTap = () => {
+                            if (!isMobile) return
+                            if (cell) {
+                              // Tap occupied cell = remove it
+                              removeFromCell(ri, ci)
+                            } else if (selectedPlant) {
+                              // Tap empty cell = place selected plant
+                              setPlants(prev => prev.map(p =>
+                                p.id === selectedPlant.id
+                                  ? { ...p, placed: [...(p.placed || []), { row: ri, col: ci }] }
+                                  : p
+                              ))
+                            }
+                          }
                           return (
                             <div key={`${ri}-${ci}`}
                               className={`relative flex items-center justify-center border border-garden-200 transition-all
-                                ${isOver ? 'bg-garden-200' : 'bg-white hover:bg-garden-50'}
-                                ${cell ? 'cursor-move' : 'cursor-crosshair'}`}
-                              style={{ width: 36, height: 36 }}
-                              onDragOver={e => { e.preventDefault(); setDragOver({ row: ri, col: ci }) }}
-                              onDragLeave={() => setDragOver(null)}
-                              onDrop={() => handleCellDrop(ri, ci)}>
+                                ${isOver ? 'bg-garden-200' : ''}
+                                ${isMobile && selectedPlant && !cell ? 'bg-garden-50 active:bg-garden-200 cursor-pointer' : ''}
+                                ${isMobile && cell ? 'cursor-pointer' : ''}
+                                ${!isMobile && !cell ? 'bg-white hover:bg-garden-50 cursor-crosshair' : ''}
+                                ${!isMobile && cell ? 'bg-white cursor-move' : ''}`}
+                              style={{ width: isMobile ? 40 : 36, height: isMobile ? 40 : 36 }}
+                              onClick={handleCellTap}
+                              onDragOver={!isMobile ? e => { e.preventDefault(); setDragOver({ row: ri, col: ci }) } : undefined}
+                              onDragLeave={!isMobile ? () => setDragOver(null) : undefined}
+                              onDrop={!isMobile ? () => handleCellDrop(ri, ci) : undefined}>
                               {cell && (
-                                <div draggable
-                                  onDragStart={() => setDragging({ plantId: cell.id, fromPos: { row: ri, col: ci } })}
+                                <div draggable={!isMobile}
+                                  onDragStart={!isMobile ? () => setDragging({ plantId: cell.id, fromPos: { row: ri, col: ci } }) : undefined}
                                   className="text-xl select-none leading-none">{cell.emoji}</div>
                               )}
-                              {cell && (
+                              {cell && !isMobile && (
                                 <button onClick={() => removeFromCell(ri, ci)}
                                   className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity z-20">
                                   ×
                                 </button>
+                              )}
+                              {cell && isMobile && (
+                                <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center z-20">
+                                  ×
+                                </div>
                               )}
                             </div>
                           )
