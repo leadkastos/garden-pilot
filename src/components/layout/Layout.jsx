@@ -1,22 +1,22 @@
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import {
   LayoutDashboard, Calendar, Leaf, Grid3x3, Receipt,
   BarChart3, Bell, ChevronDown, LogOut,
-  User, Sprout, X, BookOpen, Users
+  User, Sprout, X, BookOpen, Users, Menu
 } from 'lucide-react'
 
 const navItems = [
-  { to: '/',           label: 'Dashboard',    icon: LayoutDashboard, end: true },
-  { to: '/calendar',   label: 'Calendar',     icon: Calendar },
-  { to: '/plants',     label: 'My Plants',    icon: Leaf },
-  { to: '/beds',       label: 'My Beds',      icon: Grid3x3 },
-  { to: '/journal',    label: 'My Journal',   icon: BookOpen },
-  { to: '/expenses',   label: 'Garden Ledger', icon: Receipt },
-  { to: '/reports',    label: 'Reports',      icon: BarChart3 },
-  { to: '/community',  label: 'Community',    icon: Users },
+  { to: '/',          label: 'Dashboard',    icon: LayoutDashboard, end: true },
+  { to: '/calendar',  label: 'Calendar',     icon: Calendar },
+  { to: '/plants',    label: 'My Plants',    icon: Leaf },
+  { to: '/beds',      label: 'My Beds',      icon: Grid3x3 },
+  { to: '/journal',   label: 'My Journal',   icon: BookOpen },
+  { to: '/expenses',  label: 'Garden Ledger', icon: Receipt },
+  { to: '/reports',   label: 'Reports',      icon: BarChart3 },
+  { to: '/community', label: 'Community',    icon: Users },
 ]
 
 const mockNotifications = [
@@ -28,9 +28,28 @@ const mockNotifications = [
 export default function Layout() {
   const { profile, user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [showNotifs, setShowNotifs] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [notifs, setNotifs] = useState(mockNotifications)
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setShowMobileMenu(false)
+    setShowNotifs(false)
+    setShowProfile(false)
+  }, [location.pathname])
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (showMobileMenu) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [showMobileMenu])
 
   const unreadCount = notifs.filter(n => n.unread).length
   const initials = profile?.full_name
@@ -57,7 +76,7 @@ export default function Layout() {
         <div className="max-w-screen-xl mx-auto px-4 h-14 flex items-center justify-between">
 
           {/* Logo */}
-          <div className="flex items-center gap-3 mr-6 flex-shrink-0">
+          <div className="flex items-center gap-3 flex-shrink-0">
             <div className="w-8 h-8 bg-garden-500 rounded-xl flex items-center justify-center">
               <Sprout size={16} className="text-white" />
             </div>
@@ -66,21 +85,17 @@ export default function Layout() {
             </span>
           </div>
 
-          {/* Nav Links */}
-          <div className="hidden md:flex items-center gap-1 flex-1">
+          {/* Desktop Nav Links */}
+          <div className="hidden lg:flex items-center gap-1 flex-1 mx-6">
             {navItems.map(({ to, label, icon: Icon, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
+              <NavLink key={to} to={to} end={end}
                 className={({ isActive }) =>
                   `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                     isActive
                       ? 'bg-garden-600 text-white'
                       : 'text-garden-300 hover:bg-garden-700 hover:text-white'
                   }`
-                }
-              >
+                }>
                 <Icon size={14} />
                 {label}
               </NavLink>
@@ -88,14 +103,13 @@ export default function Layout() {
           </div>
 
           {/* Right side */}
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex items-center gap-2">
 
             {/* Notifications */}
             <div className="relative">
               <button
-                onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false) }}
-                className="relative w-9 h-9 rounded-xl bg-garden-700 hover:bg-garden-600 flex items-center justify-center transition-colors"
-              >
+                onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false); setShowMobileMenu(false) }}
+                className="relative w-9 h-9 rounded-xl bg-garden-700 hover:bg-garden-600 flex items-center justify-center transition-colors">
                 <Bell size={16} className="text-garden-200" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
@@ -139,16 +153,15 @@ export default function Layout() {
               )}
             </div>
 
-            {/* Profile */}
-            <div className="relative">
+            {/* Profile — desktop only */}
+            <div className="relative hidden lg:block">
               <button
                 onClick={() => { setShowProfile(!showProfile); setShowNotifs(false) }}
-                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl bg-garden-700 hover:bg-garden-600 transition-colors"
-              >
+                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl bg-garden-700 hover:bg-garden-600 transition-colors">
                 <div className="w-7 h-7 rounded-lg bg-garden-500 flex items-center justify-center text-white text-xs font-medium">
                   {initials}
                 </div>
-                <span className="text-sm text-garden-200 hidden sm:block max-w-[100px] truncate">
+                <span className="text-sm text-garden-200 max-w-[100px] truncate">
                   {profile?.full_name || user?.email}
                 </span>
                 <ChevronDown size={12} className="text-garden-400" />
@@ -179,9 +192,78 @@ export default function Layout() {
                 </div>
               )}
             </div>
+
+            {/* Hamburger — mobile only */}
+            <button
+              onClick={() => { setShowMobileMenu(!showMobileMenu); setShowNotifs(false); setShowProfile(false) }}
+              className="lg:hidden w-9 h-9 rounded-xl bg-garden-700 hover:bg-garden-600 flex items-center justify-center transition-colors">
+              {showMobileMenu
+                ? <X size={18} className="text-white" />
+                : <Menu size={18} className="text-white" />
+              }
+            </button>
           </div>
         </div>
       </nav>
+
+      {/* Mobile Menu Overlay */}
+      {showMobileMenu && (
+        <div className="lg:hidden fixed inset-0 z-40 flex">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileMenu(false)} />
+
+          {/* Slide-in panel */}
+          <div className="relative w-72 max-w-[85vw] bg-garden-900 flex flex-col h-full shadow-2xl">
+
+            {/* Mobile menu header */}
+            <div className="px-5 py-4 border-b border-garden-700">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-garden-500 flex items-center justify-center text-white font-medium">
+                  {initials}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{profile?.full_name || 'Gardener'}</p>
+                  <p className="text-xs text-garden-400 truncate">{user?.email}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile nav links */}
+            <div className="flex-1 overflow-y-auto py-3 px-3">
+              {navItems.map(({ to, label, icon: Icon, end }) => (
+                <NavLink key={to} to={to} end={end}
+                  onClick={() => setShowMobileMenu(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-xl mb-1 text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-garden-600 text-white'
+                        : 'text-garden-300 hover:bg-garden-700 hover:text-white'
+                    }`
+                  }>
+                  <Icon size={18} />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+
+            {/* Mobile menu footer */}
+            <div className="px-3 py-4 border-t border-garden-700 space-y-1">
+              <button onClick={() => { navigate('/profile'); setShowMobileMenu(false) }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-garden-300 hover:bg-garden-700 hover:text-white transition-all">
+                <User size={18} /> My Profile
+              </button>
+              <button onClick={() => { navigate('/profile/flowers'); setShowMobileMenu(false) }}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-garden-300 hover:bg-garden-700 hover:text-white transition-all">
+                <Leaf size={18} /> Flower Tracker
+              </button>
+              <button onClick={handleSignOut}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-red-400 hover:bg-red-900/30 transition-all">
+                <LogOut size={18} /> Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Page Content */}
       <main className="max-w-screen-xl mx-auto px-4 py-6">
