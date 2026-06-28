@@ -101,7 +101,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="relative">
-          <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-12 w-auto" />
+          <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-20 w-auto" />
         </div>
 
         {/* Tagline */}
