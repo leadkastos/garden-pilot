@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import {
   LayoutDashboard, Calendar, Leaf, Grid3x3, Receipt,
   BarChart3, Bell, ChevronDown, LogOut,
-  User, Sprout, X, BookOpen, Users, Menu
+  User, X, BookOpen, Users, Menu
 } from 'lucide-react'
 
 const navItems = [
@@ -34,14 +34,12 @@ export default function Layout() {
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const [notifs, setNotifs] = useState(mockNotifications)
 
-  // Close mobile menu on route change
   useEffect(() => {
     setShowMobileMenu(false)
     setShowNotifs(false)
     setShowProfile(false)
   }, [location.pathname])
 
-  // Prevent body scroll when mobile menu is open
   useEffect(() => {
     if (showMobileMenu) {
       document.body.style.overflow = 'hidden'
@@ -71,18 +69,13 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-parchment">
-      {/* Top Nav */}
-      <nav className="bg-garden-800 shadow-nav sticky top-0 z-50">
+      {/* Top Nav — Deep Forest Green */}
+      <nav className="sticky top-0 z-50 shadow-nav" style={{ backgroundColor: '#1e3d1a' }}>
         <div className="max-w-screen-xl mx-auto px-4 h-14 flex items-center justify-between">
 
           {/* Logo */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="w-8 h-8 bg-garden-500 rounded-xl flex items-center justify-center">
-              <Sprout size={16} className="text-white" />
-            </div>
-            <span className="font-display text-white text-lg font-semibold tracking-tight">
-              Garden Pilot
-            </span>
+          <div className="flex items-center flex-shrink-0">
+            <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-9 w-auto" />
           </div>
 
           {/* Desktop Nav Links */}
@@ -92,10 +85,11 @@ export default function Layout() {
                 className={({ isActive }) =>
                   `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                     isActive
-                      ? 'bg-garden-600 text-white'
-                      : 'text-garden-300 hover:bg-garden-700 hover:text-white'
+                      ? 'text-white'
+                      : 'text-green-300 hover:text-white'
                   }`
-                }>
+                }
+                style={({ isActive }) => isActive ? { backgroundColor: 'rgba(255,255,255,0.15)' } : {}}>
                 <Icon size={14} />
                 {label}
               </NavLink>
@@ -109,8 +103,9 @@ export default function Layout() {
             <div className="relative">
               <button
                 onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false); setShowMobileMenu(false) }}
-                className="relative w-9 h-9 rounded-xl bg-garden-700 hover:bg-garden-600 flex items-center justify-center transition-colors">
-                <Bell size={16} className="text-garden-200" />
+                className="relative w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <Bell size={16} className="text-green-200" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {unreadCount}
@@ -157,14 +152,15 @@ export default function Layout() {
             <div className="relative hidden lg:block">
               <button
                 onClick={() => { setShowProfile(!showProfile); setShowNotifs(false) }}
-                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl bg-garden-700 hover:bg-garden-600 transition-colors">
-                <div className="w-7 h-7 rounded-lg bg-garden-500 flex items-center justify-center text-white text-xs font-medium">
+                className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl transition-colors hover:bg-white/10"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+                <div className="w-7 h-7 rounded-lg bg-green-700 flex items-center justify-center text-white text-xs font-medium">
                   {initials}
                 </div>
-                <span className="text-sm text-garden-200 max-w-[100px] truncate">
+                <span className="text-sm text-green-200 max-w-[100px] truncate">
                   {profile?.full_name || user?.email}
                 </span>
-                <ChevronDown size={12} className="text-garden-400" />
+                <ChevronDown size={12} className="text-green-400" />
               </button>
 
               {showProfile && (
@@ -196,7 +192,8 @@ export default function Layout() {
             {/* Hamburger — mobile only */}
             <button
               onClick={() => { setShowMobileMenu(!showMobileMenu); setShowNotifs(false); setShowProfile(false) }}
-              className="lg:hidden w-9 h-9 rounded-xl bg-garden-700 hover:bg-garden-600 flex items-center justify-center transition-colors">
+              className="lg:hidden w-9 h-9 rounded-xl flex items-center justify-center transition-colors hover:bg-white/10"
+              style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
               {showMobileMenu
                 ? <X size={18} className="text-white" />
                 : <Menu size={18} className="text-white" />
@@ -209,21 +206,19 @@ export default function Layout() {
       {/* Mobile Menu Overlay */}
       {showMobileMenu && (
         <div className="lg:hidden fixed inset-0 z-40 flex">
-          {/* Backdrop */}
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowMobileMenu(false)} />
+          <div className="relative w-72 max-w-[85vw] flex flex-col h-full shadow-2xl" style={{ backgroundColor: '#162d12' }}>
 
-          {/* Slide-in panel */}
-          <div className="relative w-72 max-w-[85vw] bg-garden-900 flex flex-col h-full shadow-2xl">
-
-            {/* Mobile menu header */}
-            <div className="px-5 py-4 border-b border-garden-700">
+            {/* Mobile menu header with logo */}
+            <div className="px-5 py-4 border-b border-white/10">
+              <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-8 w-auto mb-3" />
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-garden-500 flex items-center justify-center text-white font-medium">
+                <div className="w-10 h-10 rounded-xl bg-green-700 flex items-center justify-center text-white font-medium">
                   {initials}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-white truncate">{profile?.full_name || 'Gardener'}</p>
-                  <p className="text-xs text-garden-400 truncate">{user?.email}</p>
+                  <p className="text-xs text-green-400 truncate">{user?.email}</p>
                 </div>
               </div>
             </div>
@@ -236,8 +231,8 @@ export default function Layout() {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-4 py-3 rounded-xl mb-1 text-sm font-medium transition-all ${
                       isActive
-                        ? 'bg-garden-600 text-white'
-                        : 'text-garden-300 hover:bg-garden-700 hover:text-white'
+                        ? 'bg-white/15 text-white'
+                        : 'text-green-300 hover:bg-white/10 hover:text-white'
                     }`
                   }>
                   <Icon size={18} />
@@ -247,13 +242,13 @@ export default function Layout() {
             </div>
 
             {/* Mobile menu footer */}
-            <div className="px-3 py-4 border-t border-garden-700 space-y-1">
+            <div className="px-3 py-4 border-t border-white/10 space-y-1">
               <button onClick={() => { navigate('/profile'); setShowMobileMenu(false) }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-garden-300 hover:bg-garden-700 hover:text-white transition-all">
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-green-300 hover:bg-white/10 hover:text-white transition-all">
                 <User size={18} /> My Profile
               </button>
               <button onClick={() => { navigate('/profile/flowers'); setShowMobileMenu(false) }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-garden-300 hover:bg-garden-700 hover:text-white transition-all">
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-green-300 hover:bg-white/10 hover:text-white transition-all">
                 <Leaf size={18} /> Flower Tracker
               </button>
               <button onClick={handleSignOut}
