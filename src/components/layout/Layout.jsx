@@ -75,7 +75,7 @@ export default function Layout() {
 
           {/* Logo */}
           <div className="flex items-center flex-shrink-0">
-            <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-9 w-auto" />
+            <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-11 w-auto" />
           </div>
 
           {/* Desktop Nav Links */}
