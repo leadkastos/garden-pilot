@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, SlidersHorizontal, Leaf, Download, Grid3x3 } from 'lucide-react'
+import { Plus, Search, SlidersHorizontal, Leaf } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 import PlantCard from '../components/plants/PlantCard'
 import AddPlantWizard from '../components/plants/AddPlantWizard'
 import PlantDetail from '../components/plants/PlantDetail'
@@ -16,10 +18,9 @@ const STATUS_COLORS = {
   Finished:   { bg: 'bg-gray-100',    text: 'text-gray-600',    dot: 'bg-gray-400' },
 }
 
-const SORT_OPTIONS = ['Recently Updated', 'Harvest Ready', 'Plant Type', 'Bed', 'Status']
+const SORT_OPTIONS = ['Recently Updated', 'Plant Type', 'Bed', 'Status']
 const STATUS_FILTERS = ['All', ...Object.keys(STATUS_COLORS)]
 
-// Guess category from plant name
 function guessCategory(name) {
   const lower = name.toLowerCase()
   if (['tomato','pepper','cucumber','zucchini','squash','lettuce','carrot','bean','corn','onion','garlic','potato','eggplant','broccoli','cauliflower','spinach','kale','beet','radish','pea','cabbage'].some(v => lower.includes(v))) return 'Vegetable'
@@ -30,70 +31,130 @@ function guessCategory(name) {
 }
 
 export default function PlantsPage() {
+  const { user } = useAuth()
   const [plants, setPlants] = useState([])
   const [beds, setBeds] = useState([])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
-  const [sortBy, setSortBy] = useState('Recently Updated')
   const [showFilters, setShowFilters] = useState(false)
   const [showWizard, setShowWizard] = useState(false)
   const [selectedPlant, setSelectedPlant] = useState(null)
+  const [loading, setLoading] = useState(true)
   const [showImportConfirm, setShowImportConfirm] = useState(false)
   const [importPreview, setImportPreview] = useState([])
 
-  // Load plants from localStorage
+  // Load plants from Supabase
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('gardenpilot_plants')
-      if (saved) setPlants(JSON.parse(saved))
-    } catch (e) { console.error('Error loading plants:', e) }
-  }, [])
+    if (!user) return
+    fetchPlants()
+    fetchBeds()
+  }, [user])
 
-  // Load beds from localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('gardenpilot_beds')
-      if (saved) setBeds(JSON.parse(saved))
-    } catch (e) { console.error('Error loading beds:', e) }
-  }, [])
+  const fetchPlants = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('plants')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+    if (!error) setPlants(data || [])
+    setLoading(false)
+  }
 
-  // Save plants to localStorage
-  useEffect(() => {
-    try {
-      if (plants.length > 0) {
-        localStorage.setItem('gardenpilot_plants', JSON.stringify(plants))
-      }
-    } catch (e) { console.error('Error saving plants:', e) }
-  }, [plants])
+  const fetchBeds = async () => {
+    const { data } = await supabase
+      .from('beds')
+      .select('*')
+      .eq('user_id', user.id)
+    setBeds(data || [])
+  }
 
-  // Calculate bed plants not yet in My Plants
-  const bedsWithPlants = beds.filter(b => b.plants.some(p => p.placed.length > 0))
-  const totalBedPlants = bedsWithPlants.reduce((s, b) =>
-    s + b.plants.reduce((ps, p) => ps + p.placed.length, 0), 0)
+  const addPlant = async (plant) => {
+    const { data, error } = await supabase
+      .from('plants')
+      .insert({
+        user_id: user.id,
+        name: plant.name,
+        variety: plant.variety || null,
+        category: plant.category || 'Vegetable',
+        status: plant.status || 'Unplanted',
+        health: plant.health || 'Good',
+        bed: plant.bed || null,
+        seeds_planted: plant.seedsPlanted || 0,
+        seeds_sprouted: plant.seedsSprouted || 0,
+        seeds_in_pack: plant.seedsInPack || 0,
+        planted_date: plant.plantedDate || null,
+        germ_days: plant.germDays || null,
+        start_location: plant.startLocation || null,
+        sun_exposure: plant.sunExposure || null,
+        seed_source: plant.seedSource || null,
+        seed_packet_name: plant.seedPacketName || null,
+        next_action: plant.nextAction || 'Watch for Sprouts',
+        days_to_harvest: plant.daysToHarvest || 0,
+        germ_rate: 0,
+        harvest_log: [],
+        milestones: [],
+        notes: [],
+        imported_from_ledger: plant.importedFromLedger || false,
+      })
+      .select()
+      .single()
 
+    if (!error && data) {
+      setPlants(prev => [data, ...prev])
+    }
+    setShowWizard(false)
+  }
+
+  const updatePlant = async (updated) => {
+    const { data, error } = await supabase
+      .from('plants')
+      .update({
+        name: updated.name,
+        variety: updated.variety,
+        category: updated.category,
+        status: updated.status,
+        health: updated.health,
+        bed: updated.bed,
+        seeds_planted: updated.seedsPlanted || updated.seeds_planted || 0,
+        seeds_sprouted: updated.seedsSprouted || updated.seeds_sprouted || 0,
+        planted_date: updated.plantedDate || updated.planted_date,
+        next_action: updated.nextAction || updated.next_action,
+        days_to_harvest: updated.daysToHarvest || updated.days_to_harvest || 0,
+        germ_rate: updated.germRate || updated.germ_rate || 0,
+        grow_again: updated.growAgain ?? updated.grow_again,
+        harvest_log: updated.harvestLog || updated.harvest_log || [],
+        milestones: updated.milestones || [],
+        notes: updated.notes || [],
+        photo_url: updated.photoUrl || updated.photo_url,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', updated.id)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (!error && data) {
+      setPlants(prev => prev.map(p => p.id === data.id ? data : p))
+      setSelectedPlant(data)
+    }
+  }
+
+  // Import plants from beds that aren't tracked yet
   const buildImportPreview = () => {
     const preview = []
     beds.forEach(bed => {
-      bed.plants.forEach(plant => {
-        if (plant.placed.length === 0) return
-        // Check if already imported (match by name + bed)
+      const bedPlants = bed.plants || []
+      bedPlants.forEach(plant => {
+        if (!plant.placed?.length) return
         const alreadyExists = plants.some(p =>
           p.name.toLowerCase() === plant.name.toLowerCase() && p.bed === bed.name)
         if (!alreadyExists) {
           preview.push({
-            id: Date.now() + Math.random(),
             name: plant.name,
-            variety: '',
             category: guessCategory(plant.name),
-            status: 'Growing',
-            health: 'Good',
             bed: bed.name,
             seedsPlanted: plant.placed.length,
-            seedsSprouted: plant.placed.length,
-            nextAction: 'Check on plant',
-            daysToHarvest: 30,
-            photo: null,
-            germRate: 100,
           })
         }
       })
@@ -107,33 +168,57 @@ export default function PlantsPage() {
     setShowImportConfirm(true)
   }
 
-  const confirmImport = () => {
-    setPlants(prev => [...prev, ...importPreview])
+  const confirmImport = async () => {
+    for (const p of importPreview) {
+      await supabase.from('plants').insert({
+        user_id: user.id,
+        name: p.name,
+        category: p.category,
+        status: 'Growing',
+        health: 'Good',
+        bed: p.bed,
+        seeds_planted: p.seedsPlanted,
+        seeds_sprouted: p.seedsPlanted,
+        germ_rate: 100,
+        next_action: 'Check on plant',
+        harvest_log: [],
+        milestones: [],
+        notes: [],
+      })
+    }
     setShowImportConfirm(false)
-    setImportPreview([])
-  }
-
-  const addPlant = (plant) => {
-    setPlants(prev => [...prev, { ...plant, id: Date.now() }])
-    setShowWizard(false)
-  }
-
-  const updatePlant = (updated) => {
-    setPlants(prev => prev.map(p => p.id === updated.id ? updated : p))
-    setSelectedPlant(updated)
+    fetchPlants()
   }
 
   const filtered = plants.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+    const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase()) ||
                         p.variety?.toLowerCase().includes(search.toLowerCase()) ||
                         p.bed?.toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'All' || p.status === statusFilter
     return matchSearch && matchStatus
   })
 
+  const bedsWithUnimported = buildImportPreview().length > 0
+
   if (selectedPlant) return (
-    <PlantDetail plant={selectedPlant} onBack={() => setSelectedPlant(null)}
-      onUpdate={updatePlant} statusColors={STATUS_COLORS} />
+    <PlantDetail
+      plant={{
+        ...selectedPlant,
+        seedsPlanted: selectedPlant.seeds_planted,
+        seedsSprouted: selectedPlant.seeds_sprouted,
+        seedsInPack: selectedPlant.seeds_in_pack,
+        plantedDate: selectedPlant.planted_date,
+        nextAction: selectedPlant.next_action,
+        daysToHarvest: selectedPlant.days_to_harvest,
+        germRate: selectedPlant.germ_rate,
+        growAgain: selectedPlant.grow_again,
+        harvestLog: selectedPlant.harvest_log,
+        seedSource: selectedPlant.seed_source,
+      }}
+      onBack={() => setSelectedPlant(null)}
+      onUpdate={updatePlant}
+      statusColors={STATUS_COLORS}
+    />
   )
 
   if (showWizard) return (
@@ -142,7 +227,6 @@ export default function PlantsPage() {
 
   return (
     <div className="space-y-5 pb-20">
-      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-semibold text-garden-900">My Plants</h1>
@@ -153,25 +237,21 @@ export default function PlantsPage() {
         </button>
       </div>
 
-      {/* Smart import banner — shows when beds have plants but My Plants is empty or has unimported plants */}
-      {bedsWithPlants.length > 0 && buildImportPreview().length > 0 && (
+      {/* Import banner */}
+      {bedsWithUnimported && (
         <div className="card bg-amber-50 border-amber-200">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Grid3x3 size={18} className="text-amber-600" />
-            </div>
+            <span className="text-2xl flex-shrink-0">🛏️</span>
             <div className="flex-1">
               <p className="text-sm font-medium text-amber-900">
-                You have {buildImportPreview().length} plants in your garden beds not yet tracked in My Plants
+                You have plants in your beds not yet tracked in My Plants
               </p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                Import them so you can track germination, health, harvests, and more
-              </p>
+              <p className="text-xs text-amber-700 mt-0.5">Import them to track germination, health, and harvests</p>
             </div>
           </div>
           <button onClick={handleImportClick}
-            className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition-colors">
-            <Download size={14} /> Import {buildImportPreview().length} plants from my beds
+            className="mt-3 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition-colors">
+            Import from my beds
           </button>
         </div>
       )}
@@ -203,17 +283,6 @@ export default function PlantsPage() {
               ))}
             </div>
           </div>
-          <div>
-            <p className="text-xs font-medium text-garden-600 mb-2">Sort by</p>
-            <div className="flex flex-wrap gap-2">
-              {SORT_OPTIONS.map(s => (
-                <button key={s} onClick={() => setSortBy(s)}
-                  className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-all ${
-                    sortBy === s ? 'bg-garden-600 text-white border-garden-600' : 'bg-white text-garden-600 border-garden-200 hover:border-garden-400'
-                  }`}>{s}</button>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 
@@ -234,8 +303,12 @@ export default function PlantsPage() {
         })}
       </div>
 
-      {/* Plant list or empty state */}
-      {filtered.length === 0 ? (
+      {/* Loading */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 border-2 border-garden-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="card text-center py-16">
           <div className="w-16 h-16 bg-garden-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Leaf size={28} className="text-garden-400" />
@@ -244,9 +317,7 @@ export default function PlantsPage() {
             {plants.length === 0 ? 'No plants yet' : 'No plants found'}
           </h3>
           <p className="text-garden-400 text-sm mb-5">
-            {plants.length === 0
-              ? 'Add your first plant to get started'
-              : `No plants matching "${search}"`}
+            {plants.length === 0 ? 'Add your first plant to get started' : `No plants matching "${search}"`}
           </p>
           {plants.length === 0 && (
             <button onClick={() => setShowWizard(true)} className="btn-primary mx-auto">
@@ -257,14 +328,30 @@ export default function PlantsPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map(plant => (
-            <PlantCard key={plant.id} plant={plant} statusColors={STATUS_COLORS}
+            <PlantCard
+              key={plant.id}
+              plant={{
+                ...plant,
+                seedsPlanted: plant.seeds_planted,
+                seedsSprouted: plant.seeds_sprouted,
+                seedsInPack: plant.seeds_in_pack,
+                plantedDate: plant.planted_date,
+                nextAction: plant.next_action,
+                daysToHarvest: plant.days_to_harvest,
+                germRate: plant.germ_rate,
+                growAgain: plant.grow_again,
+                harvestLog: plant.harvest_log,
+                seedSource: plant.seed_source,
+              }}
+              statusColors={STATUS_COLORS}
               onClick={() => setSelectedPlant(plant)}
-              onUpdate={updatePlant} />
+              onUpdate={updatePlant}
+            />
           ))}
         </div>
       )}
 
-      {/* IMPORT CONFIRM MODAL */}
+      {/* Import confirm modal */}
       {showImportConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
@@ -272,32 +359,22 @@ export default function PlantsPage() {
               <h3 className="font-display text-lg font-semibold text-garden-900 mb-1">
                 Import {importPreview.length} {importPreview.length === 1 ? 'plant' : 'plants'}
               </h3>
-              <p className="text-xs text-garden-500">
-                These will be added to My Plants so you can track them individually
-              </p>
+              <p className="text-xs text-garden-500">These will be added to My Plants from your beds</p>
             </div>
-            <div className="px-5 py-4 max-h-64 overflow-y-auto">
-              <div className="space-y-2">
-                {importPreview.map((p, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 bg-garden-50 rounded-xl border border-garden-100">
-                    <span className="text-xl">🌱</span>
-                    <div>
-                      <p className="text-sm font-medium text-garden-800">{p.name}</p>
-                      <p className="text-xs text-garden-400">{p.bed} · {p.seedsPlanted} {p.seedsPlanted === 1 ? 'plant' : 'plants'}</p>
-                    </div>
+            <div className="px-5 py-4 max-h-64 overflow-y-auto space-y-2">
+              {importPreview.map((p, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 bg-garden-50 rounded-xl border border-garden-100">
+                  <span className="text-xl">🌱</span>
+                  <div>
+                    <p className="text-sm font-medium text-garden-800">{p.name}</p>
+                    <p className="text-xs text-garden-400">{p.bed} · {p.seedsPlanted} plants</p>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
             <div className="px-5 py-4 border-t border-garden-100 flex gap-3">
-              <button onClick={() => setShowImportConfirm(false)}
-                className="btn-secondary flex-1 justify-center py-2">
-                Cancel
-              </button>
-              <button onClick={confirmImport}
-                className="btn-primary flex-1 justify-center py-2">
-                <Download size={14} /> Import
-              </button>
+              <button onClick={() => setShowImportConfirm(false)} className="btn-secondary flex-1 justify-center py-2">Cancel</button>
+              <button onClick={confirmImport} className="btn-primary flex-1 justify-center py-2">Import all</button>
             </div>
           </div>
         </div>

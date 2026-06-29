@@ -1,60 +1,120 @@
 import { useState, useEffect } from 'react'
 import { Plus, Grid3x3, Pencil, Trash2 } from 'lucide-react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 import BedBuilder from '../components/beds/BedBuilder'
 import BedDiagram from '../components/beds/BedDiagram'
 
 export default function BedsPage() {
+  const { user } = useAuth()
   const [beds, setBeds] = useState([])
+  const [loading, setLoading] = useState(true)
   const [showBuilder, setShowBuilder] = useState(false)
   const [editingBed, setEditingBed] = useState(null)
   const [viewingBed, setViewingBed] = useState(null)
 
-  // Load from localStorage on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('gardenpilot_beds')
-      if (saved) setBeds(JSON.parse(saved))
-    } catch (e) { console.error('Error loading beds:', e) }
-  }, [])
+    if (!user) return
+    fetchBeds()
+  }, [user])
 
-  // Save to localStorage whenever beds change
-  useEffect(() => {
-    try {
-      localStorage.setItem('gardenpilot_beds', JSON.stringify(beds))
-    } catch (e) { console.error('Error saving beds:', e) }
-  }, [beds])
+  const fetchBeds = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('beds')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+    if (!error) setBeds(data || [])
+    setLoading(false)
+  }
 
-  const saveBed = (bed) => {
+  const saveBed = async (bed) => {
     if (bed.id && beds.find(b => b.id === bed.id)) {
-      setBeds(prev => prev.map(b => b.id === bed.id ? bed : b))
+      // Update existing
+      const { data, error } = await supabase
+        .from('beds')
+        .update({
+          name: bed.name,
+          length: bed.length,
+          width: bed.width,
+          plants: bed.plants || [],
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bed.id)
+        .eq('user_id', user.id)
+        .select()
+        .single()
+      if (!error && data) setBeds(prev => prev.map(b => b.id === data.id ? data : b))
     } else {
-      setBeds(prev => [...prev, { ...bed, id: Date.now() }])
+      // Insert new
+      const { data, error } = await supabase
+        .from('beds')
+        .insert({
+          user_id: user.id,
+          name: bed.name,
+          length: bed.length,
+          width: bed.width,
+          plants: bed.plants || [],
+          notes: [],
+        })
+        .select()
+        .single()
+      if (!error && data) setBeds(prev => [data, ...prev])
     }
     setShowBuilder(false)
     setEditingBed(null)
   }
 
-  const deleteBed = (id) => {
-    if (confirm('Delete this bed?')) setBeds(prev => prev.filter(b => b.id !== id))
+  const deleteBed = async (id) => {
+    if (!confirm('Delete this bed?')) return
+    const { error } = await supabase
+      .from('beds')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+    if (!error) setBeds(prev => prev.filter(b => b.id !== id))
   }
 
-  const totalPlants = beds.reduce((s, b) => s + b.plants.reduce((ps, p) => ps + p.placed.length, 0), 0)
+  const saveNotes = async (bedId, notes) => {
+    const { data } = await supabase
+      .from('beds')
+      .update({ notes, updated_at: new Date().toISOString() })
+      .eq('id', bedId)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+    if (data) {
+      setBeds(prev => prev.map(b => b.id === bedId ? data : b))
+      if (viewingBed?.id === bedId) setViewingBed(data)
+    }
+  }
+
+  const totalPlants = beds.reduce((s, b) =>
+    s + (b.plants || []).reduce((ps, p) => ps + (p.placed?.length || 0), 0), 0)
 
   if (showBuilder || editingBed) return (
-    <BedBuilder bed={editingBed} onSave={saveBed}
-      onCancel={() => { setShowBuilder(false); setEditingBed(null) }} />
+    <BedBuilder
+      bed={editingBed}
+      onSave={saveBed}
+      onCancel={() => { setShowBuilder(false); setEditingBed(null) }}
+    />
   )
 
   if (viewingBed) return (
-    <BedDiagram bed={viewingBed} onBack={() => setViewingBed(null)}
-      onEdit={() => { setEditingBed(viewingBed); setViewingBed(null) }} />
+    <BedDiagram
+      bed={viewingBed}
+      onBack={() => setViewingBed(null)}
+      onEdit={() => { setEditingBed(viewingBed); setViewingBed(null) }}
+      onSaveNotes={(notes) => saveNotes(viewingBed.id, notes)}
+    />
   )
 
   return (
     <div className="space-y-5 pb-20">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-semibold text-garden-900">Garden Beds</h1>
+          <h1 className="font-display text-3xl font-semibold text-garden-900">My Beds</h1>
           <p className="text-garden-500 text-sm mt-1">{beds.length} beds · {totalPlants} plants placed</p>
         </div>
         <button onClick={() => setShowBuilder(true)} className="btn-primary flex-shrink-0">
@@ -62,7 +122,11 @@ export default function BedsPage() {
         </button>
       </div>
 
-      {beds.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <div className="w-8 h-8 border-2 border-garden-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : beds.length === 0 ? (
         <div className="card text-center py-16">
           <div className="w-16 h-16 bg-garden-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Grid3x3 size={28} className="text-garden-400" />
@@ -76,10 +140,13 @@ export default function BedsPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {beds.map(bed => (
-            <BedCard key={bed.id} bed={bed}
+            <BedCard
+              key={bed.id}
+              bed={bed}
               onView={() => setViewingBed(bed)}
               onEdit={() => setEditingBed(bed)}
-              onDelete={() => deleteBed(bed.id)} />
+              onDelete={() => deleteBed(bed.id)}
+            />
           ))}
         </div>
       )}
@@ -88,14 +155,15 @@ export default function BedsPage() {
 }
 
 function BedCard({ bed, onView, onEdit, onDelete }) {
-  const totalPlaced = bed.plants.reduce((s, p) => s + p.placed.length, 0)
-  const cols = Math.min(bed.length * 2, 12)
-  const rows = Math.min(bed.width * 2, 6)
+  const plants = bed.plants || []
+  const totalPlaced = plants.reduce((s, p) => s + (p.placed?.length || 0), 0)
+  const cols = Math.min((bed.length || 4) * 2, 12)
+  const rows = Math.min((bed.width || 4) * 2, 6)
 
   const grid = Array(rows).fill(null).map(() => Array(cols).fill(null))
-  bed.plants.forEach(plant => {
-    plant.placed.forEach(pos => {
-      if (pos.row < grid.length && pos.col < grid[0].length) {
+  plants.forEach(plant => {
+    (plant.placed || []).forEach(pos => {
+      if (pos.row < grid.length && pos.col < (grid[0]?.length || 0)) {
         grid[pos.row][pos.col] = plant.emoji
       }
     })
@@ -133,7 +201,7 @@ function BedCard({ bed, onView, onEdit, onDelete }) {
       </div>
 
       <div className="flex flex-wrap gap-1.5 mb-3">
-        {bed.plants.filter(p => p.placed.length > 0).map(p => (
+        {plants.filter(p => (p.placed?.length || 0) > 0).map(p => (
           <span key={p.id} className="flex items-center gap-1 text-xs bg-white border border-garden-200 px-2 py-1 rounded-full">
             {p.emoji} {p.name} ×{p.placed.length}
           </span>
