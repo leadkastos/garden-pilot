@@ -70,27 +70,34 @@ export default function PlantsPage() {
   }
 
   const addPlant = async (plant) => {
+    // Get fresh session to ensure we have valid user
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) {
+      alert('You must be logged in to save plants')
+      return
+    }
+    const userId = session.user.id
     const { data, error } = await supabase
       .from('plants')
       .insert({
-        user_id: user.id,
-        name: plant.name,
+        user_id: userId,
+        name: plant.name || 'New Plant',
         variety: plant.variety || null,
         category: plant.category || 'Vegetable',
         status: plant.status || 'Unplanted',
         health: plant.health || 'Good',
         bed: plant.bed || null,
-        seeds_planted: plant.seedsPlanted || 0,
-        seeds_sprouted: plant.seedsSprouted || 0,
-        seeds_in_pack: plant.seedsInPack || 0,
+        seeds_planted: parseInt(plant.seedsPlanted) || 0,
+        seeds_sprouted: parseInt(plant.seedsSprouted) || 0,
+        seeds_in_pack: parseInt(plant.seedsInPack) || 0,
         planted_date: plant.plantedDate || null,
-        germ_days: plant.germDays || null,
+        germ_days: parseInt(plant.germDays) || null,
         start_location: plant.startLocation || null,
         sun_exposure: plant.sunExposure || null,
         seed_source: plant.seedSource || null,
         seed_packet_name: plant.seedPacketName || null,
         next_action: plant.nextAction || 'Watch for Sprouts',
-        days_to_harvest: plant.daysToHarvest || 0,
+        days_to_harvest: parseInt(plant.daysToHarvest) || 0,
         germ_rate: 0,
         harvest_log: [],
         milestones: [],
@@ -100,7 +107,10 @@ export default function PlantsPage() {
       .select()
       .single()
 
-    if (!error && data) {
+    if (error) {
+      console.error('Error saving plant:', JSON.stringify(error))
+      alert('Error saving plant: ' + error.message)
+    } else if (data) {
       setPlants(prev => [data, ...prev])
     }
     setShowWizard(false)
