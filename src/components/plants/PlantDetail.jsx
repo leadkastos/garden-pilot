@@ -46,7 +46,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
   const [showHarvestModal, setShowHarvestModal] = useState(false)
   const [showGermModal, setShowGermModal] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
-  // Real data from the plant record (falls back to empty)
   const [notes, setNotes] = useState(Array.isArray(plant.notes) ? plant.notes : [])
   const [newNote, setNewNote] = useState('')
   const [harvestLog, setHarvestLog] = useState(Array.isArray(plant.harvestLog) ? plant.harvestLog : [])
@@ -57,7 +56,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
   const colors = statusColors[plant.status] || statusColors['Growing']
   const germPct = plant.seedsPlanted > 0 ? Math.round((germSprouted / plant.seedsPlanted) * 100) : 0
 
-  // Persist helper — merges changes and saves to Supabase
   const persist = (changes) => {
     onUpdate({ ...plant, ...changes })
   }
@@ -421,15 +419,15 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
         )}
       </div>
 
-      {/* WHAT HAPPENED TODAY MODAL */}
+      {/* WHAT HAPPENED TODAY MODAL — centered popup */}
       {showTodayModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white rounded-t-3xl w-full p-5 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[85vh] overflow-y-auto">
+            <div className="px-5 pt-5 pb-3 border-b border-garden-100 flex items-center justify-between sticky top-0 bg-white">
               <h3 className="font-display text-xl font-semibold text-garden-900">What happened today?</h3>
               <button onClick={() => setShowTodayModal(false)}><X size={20} className="text-garden-400" /></button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="p-5 grid grid-cols-2 gap-2">
               {QUICK_ACTIONS.map(action => (
                 <button key={action.id} onClick={() => handleQuickAction(action)}
                   className="flex items-center gap-3 p-4 bg-garden-50 hover:bg-garden-100 border border-garden-200 rounded-2xl text-left active:scale-95 transition-all">
@@ -442,35 +440,41 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
         </div>
       )}
 
-      {/* GERMINATION UPDATE MODAL */}
+      {/* GERMINATION UPDATE MODAL — centered popup */}
       {showGermModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white rounded-t-3xl w-full p-5">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="px-5 pt-5 pb-3 border-b border-garden-100 flex items-center justify-between">
               <h3 className="font-display text-xl font-semibold text-garden-900">Update sprouted seeds</h3>
               <button onClick={() => setShowGermModal(false)}><X size={20} className="text-garden-400" /></button>
             </div>
-            <p className="text-sm text-garden-500 mb-4">How many seeds have sprouted so far?</p>
-            <input type="number" min="0" max={plant.seedsPlanted}
-              className="input-field text-2xl font-display text-center mb-4"
-              value={germSprouted}
-              onChange={e => setGermSprouted(parseInt(e.target.value) || 0)} />
-            <button onClick={saveGerm} className="w-full btn-primary justify-center py-4">
-              <CheckCircle2 size={16} /> Save Update
-            </button>
+            <div className="px-5 py-4">
+              <p className="text-sm text-garden-500 mb-4">How many seeds have sprouted so far?</p>
+              <input type="number" min="0" max={plant.seedsPlanted}
+                className="input-field text-2xl font-display text-center mb-4"
+                value={germSprouted}
+                onChange={e => setGermSprouted(parseInt(e.target.value) || 0)} />
+            </div>
+            <div className="px-5 py-4 border-t border-garden-100">
+              <button onClick={saveGerm} className="w-full btn-primary justify-center py-3">
+                <CheckCircle2 size={16} /> Save Update
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* HARVEST MODAL */}
+      {/* HARVEST MODAL — centered popup */}
       {showHarvestModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white rounded-t-3xl w-full p-5">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="px-5 pt-5 pb-3 border-b border-garden-100 flex items-center justify-between">
               <h3 className="font-display text-xl font-semibold text-garden-900">Log a harvest</h3>
               <button onClick={() => setShowHarvestModal(false)}><X size={20} className="text-garden-400" /></button>
             </div>
-            <HarvestForm onSave={logHarvest} plant={plant} />
+            <div className="px-5 py-4">
+              <HarvestForm onSave={logHarvest} plant={plant} />
+            </div>
           </div>
         </div>
       )}
