@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   ArrowLeft, Camera, Plus, Droplets, Zap, AlertTriangle,
   CheckCircle2, Leaf, BarChart2, TrendingUp, Star, X,
-  ChevronDown, ChevronUp, Edit3
+  ChevronDown, ChevronUp, Edit3, Trash2
 } from 'lucide-react'
 
 const QUICK_ACTIONS = [
@@ -32,57 +32,98 @@ const HEALTH_COLORS = {
   Poor: 'bg-red-100 text-red-800 border-red-300',
 }
 
-export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
+function nowStamp() {
+  const now = new Date()
+  return now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
+    ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true })
+}
+function todayLabel() {
+  return new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
+}
+
+export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusColors }) {
   const [showTodayModal, setShowTodayModal] = useState(false)
   const [showHarvestModal, setShowHarvestModal] = useState(false)
   const [showGermModal, setShowGermModal] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
-  const [notes, setNotes] = useState([
-    { id:1, text:'Planted in seed tray indoors', date:'Apr 4', type:'system' },
-    { id:2, text:'First signs of sprouting!', date:'Apr 11', type:'update' },
-  ])
+  // Real data from the plant record (falls back to empty)
+  const [notes, setNotes] = useState(Array.isArray(plant.notes) ? plant.notes : [])
   const [newNote, setNewNote] = useState('')
-  const [harvestLog, setHarvestLog] = useState([])
-  const [timeline, setTimeline] = useState([
-    { name: 'Seed Planted', completedAt: 'Apr 4, 2026 at 9:00 AM' },
-    { name: 'Sprouted',     completedAt: 'Apr 11, 2026 at 7:32 AM' },
-  ])
-  const [germSprouted, setGermSprouted] = useState(plant.seedsSprouted)
-  const [growAgain, setGrowAgain] = useState(null)
+  const [harvestLog, setHarvestLog] = useState(Array.isArray(plant.harvestLog) ? plant.harvestLog : [])
+  const [timeline, setTimeline] = useState(Array.isArray(plant.milestones) ? plant.milestones : [])
+  const [germSprouted, setGermSprouted] = useState(plant.seedsSprouted || 0)
+  const [growAgain, setGrowAgain] = useState(plant.growAgain ?? null)
 
   const colors = statusColors[plant.status] || statusColors['Growing']
   const germPct = plant.seedsPlanted > 0 ? Math.round((germSprouted / plant.seedsPlanted) * 100) : 0
 
+  // Persist helper — merges changes and saves to Supabase
+  const persist = (changes) => {
+    onUpdate({ ...plant, ...changes })
+  }
+
   const handleQuickAction = (action) => {
-    const note = { id: Date.now(), text: action.label, date: 'Today', type: 'action', emoji: action.emoji }
-    setNotes(n => [note, ...n])
+    const note = { id: Date.now(), text: action.label, date: todayLabel(), type: 'action', emoji: action.emoji }
+    const updated = [note, ...notes]
+    setNotes(updated)
+    persist({ notes: updated })
     setShowTodayModal(false)
   }
 
   const addNote = () => {
     if (!newNote.trim()) return
-    setNotes(n => [{ id: Date.now(), text: newNote, date: 'Today', type: 'note' }, ...n])
+    const updated = [{ id: Date.now(), text: newNote, date: todayLabel(), type: 'note' }, ...notes]
+    setNotes(updated)
+    persist({ notes: updated })
     setNewNote('')
   }
 
+  const deleteNote = (id) => {
+    const updated = notes.filter(n => n.id !== id)
+    setNotes(updated)
+    persist({ notes: updated })
+  }
+
   const logHarvest = (weight, unit) => {
-    setHarvestLog(h => [...h, { id: Date.now(), date: 'Today', weight, unit }])
+    const entry = { id: Date.now(), date: todayLabel(), weight, unit }
+    const updated = [...harvestLog, entry]
+    setHarvestLog(updated)
+    persist({ harvestLog: updated, status: 'Harvesting' })
     setShowHarvestModal(false)
+  }
+
+  const deleteHarvest = (id) => {
+    const updated = harvestLog.filter(h => h.id !== id)
+    setHarvestLog(updated)
+    persist({ harvestLog: updated })
   }
 
   const toggleMilestone = (m) => {
     const alreadyDone = timeline.find(x => x.name === m)
+    let updated
     if (alreadyDone) {
-      setTimeline(t => t.filter(x => x.name !== m))
+      updated = timeline.filter(x => x.name !== m)
     } else {
-      const now = new Date()
-      const stamp = now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
-        ' at ' + now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true })
-      setTimeline(t => [...t, { name: m, completedAt: stamp }])
+      updated = [...timeline, { name: m, completedAt: nowStamp() }]
     }
+    setTimeline(updated)
+    persist({ milestones: updated })
   }
 
-  const totalHarvest = harvestLog.reduce((s, h) => s + parseFloat(h.weight || 0), 0)
+  const saveGerm = () => {
+    const rate = plant.seedsPlanted > 0 ? Math.round((germSprouted / plant.seedsPlanted) * 100) : 0
+    persist({ seedsSprouted: germSprouted, germRate: rate })
+    setShowGermModal(false)
+  }
+
+  const saveGrowAgain = (val) => {
+    setGrowAgain(val)
+    persist({ growAgain: val })
+  }
+
+  const totalHarvest = harvestLog
+    .filter(h => h.unit !== 'count')
+    .reduce((s, h) => s + parseFloat(h.weight || 0), 0)
 
   return (
     <div className="min-h-screen bg-parchment pb-24">
@@ -94,7 +135,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
         </button>
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-2xl bg-garden-700 flex items-center justify-center text-3xl flex-shrink-0">
-            🍅
+            🌱
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="font-display text-2xl font-semibold text-white leading-tight">{plant.name}</h1>
@@ -107,6 +148,13 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
               <span className="text-garden-400 text-xs">{plant.bed}</span>
             </div>
           </div>
+          {onDelete && (
+            <button onClick={onDelete}
+              className="w-9 h-9 rounded-xl bg-garden-700 hover:bg-red-500/80 flex items-center justify-center transition-colors flex-shrink-0"
+              title="Delete plant">
+              <Trash2 size={15} className="text-garden-200" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -138,10 +186,10 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
         {activeTab === 'overview' && (
           <div className="space-y-4 fade-in">
 
-            {/* AI Insight */}
+            {/* Insight */}
             <div className="card bg-garden-50 border-garden-200">
               <div className="flex items-start gap-2">
-                <span className="text-xl">🤖</span>
+                <span className="text-xl">🌿</span>
                 <div>
                   <p className="text-xs font-medium text-garden-700 mb-1">Garden Pilot Insight</p>
                   <p className="text-sm text-garden-600">
@@ -193,7 +241,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
               <h3 className="font-medium text-garden-900 mb-3">How does it look?</h3>
               <div className="grid grid-cols-4 gap-2">
                 {HEALTH_OPTIONS.map(h => (
-                  <button key={h} onClick={() => onUpdate({ ...plant, health: h })}
+                  <button key={h} onClick={() => persist({ health: h })}
                     className={`py-2.5 rounded-xl border-2 text-xs font-medium transition-all ${
                       plant.health === h
                         ? HEALTH_COLORS[h]
@@ -225,7 +273,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
             <div className="card">
               <h3 className="font-medium text-garden-900 mb-3">Would you grow this again?</h3>
               <div className="flex gap-3">
-                <button onClick={() => setGrowAgain(true)}
+                <button onClick={() => saveGrowAgain(true)}
                   className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
                     growAgain === true
                       ? 'border-garden-500 bg-garden-50 text-garden-800'
@@ -233,7 +281,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
                   }`}>
                   ⭐ Grow Again
                 </button>
-                <button onClick={() => setGrowAgain(false)}
+                <button onClick={() => saveGrowAgain(false)}
                   className={`flex-1 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
                     growAgain === false
                       ? 'border-red-300 bg-red-50 text-red-700'
@@ -298,13 +346,22 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
               </button>
             </div>
             <div className="space-y-2">
-              {notes.map(note => (
+              {notes.length === 0 ? (
+                <div className="card text-center py-8">
+                  <p className="text-garden-400 text-sm">No notes yet</p>
+                  <p className="text-garden-300 text-xs mt-1">Add your first note above</p>
+                </div>
+              ) : notes.map(note => (
                 <div key={note.id} className="card flex items-start gap-3">
                   <span className="text-lg">{note.emoji || (note.type === 'system' ? '⚙️' : '📝')}</span>
                   <div className="flex-1">
                     <p className="text-sm text-garden-800">{note.text}</p>
                     <p className="text-xs text-garden-400 mt-1">{note.date}</p>
                   </div>
+                  <button onClick={() => deleteNote(note.id)}
+                    className="w-6 h-6 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center flex-shrink-0">
+                    <Trash2 size={11} className="text-red-400" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -337,7 +394,13 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
                       <p className="text-sm font-medium text-garden-800">{h.weight} {h.unit}</p>
                       <p className="text-xs text-garden-400">{h.date}</p>
                     </div>
-                    <span className="text-2xl">🥕</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🥕</span>
+                      <button onClick={() => deleteHarvest(h.id)}
+                        className="w-6 h-6 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center">
+                        <Trash2 size={11} className="text-red-400" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -351,9 +414,9 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
             <button className="w-full border-2 border-dashed border-garden-300 rounded-2xl py-10 flex flex-col items-center gap-2 hover:bg-garden-50 transition-colors">
               <Camera size={28} className="text-garden-400" />
               <p className="text-sm font-medium text-garden-600">Add a photo</p>
-              <p className="text-xs text-garden-400">Take a photo or upload from your phone</p>
+              <p className="text-xs text-garden-400">Photo uploads coming soon</p>
             </button>
-            <p className="text-center text-garden-400 text-sm">No photos yet — add your first one above!</p>
+            <p className="text-center text-garden-400 text-sm">No photos yet</p>
           </div>
         )}
       </div>
@@ -392,8 +455,8 @@ export default function PlantDetail({ plant, onBack, onUpdate, statusColors }) {
               className="input-field text-2xl font-display text-center mb-4"
               value={germSprouted}
               onChange={e => setGermSprouted(parseInt(e.target.value) || 0)} />
-            <button onClick={() => setShowGermModal(false)} className="w-full btn-primary justify-center py-4">
-              <Check size={16} /> Save Update
+            <button onClick={saveGerm} className="w-full btn-primary justify-center py-4">
+              <CheckCircle2 size={16} /> Save Update
             </button>
           </div>
         </div>
@@ -443,8 +506,4 @@ function HarvestForm({ onSave, plant }) {
       </button>
     </div>
   )
-}
-
-function Check({ size, className }) {
-  return <CheckCircle2 size={size} className={className} />
 }
