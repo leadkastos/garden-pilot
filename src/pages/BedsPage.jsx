@@ -8,6 +8,7 @@ import BedDiagram from '../components/beds/BedDiagram'
 export default function BedsPage() {
   const { user } = useAuth()
   const [beds, setBeds] = useState([])
+  const [unplacedPlants, setUnplacedPlants] = useState([])
   const [loading, setLoading] = useState(true)
   const [showBuilder, setShowBuilder] = useState(false)
   const [editingBed, setEditingBed] = useState(null)
@@ -16,6 +17,7 @@ export default function BedsPage() {
   useEffect(() => {
     if (!user) return
     fetchBeds()
+    fetchUnplacedPlants()
   }, [user])
 
   const fetchBeds = async () => {
@@ -27,6 +29,29 @@ export default function BedsPage() {
       .order('created_at', { ascending: false })
     if (!error) setBeds(data || [])
     setLoading(false)
+  }
+
+  const fetchUnplacedPlants = async () => {
+    const { data, error } = await supabase
+      .from('plants')
+      .select('id, name, category, bed_id')
+      .eq('user_id', user.id)
+      .is('bed_id', null)
+    if (!error) setUnplacedPlants(data || [])
+  }
+
+  // Write bed_id + bed name back to any tracked plants that were placed in this bed
+  const linkPlantsToBed = async (bedId, bedName, plants) => {
+    const trackedIds = (plants || [])
+      .filter(p => p.sourcePlantId && (p.placed?.length || 0) > 0)
+      .map(p => p.sourcePlantId)
+    if (trackedIds.length === 0) return
+    await supabase
+      .from('plants')
+      .update({ bed_id: bedId, bed: bedName, updated_at: new Date().toISOString() })
+      .in('id', trackedIds)
+      .eq('user_id', user.id)
+    fetchUnplacedPlants()
   }
 
   const saveBed = async (bed) => {
@@ -45,7 +70,10 @@ export default function BedsPage() {
         .eq('user_id', user.id)
         .select()
         .single()
-      if (!error && data) setBeds(prev => prev.map(b => b.id === data.id ? data : b))
+      if (!error && data) {
+        setBeds(prev => prev.map(b => b.id === data.id ? data : b))
+        await linkPlantsToBed(data.id, data.name, bed.plants)
+      }
     } else {
       // Insert new
       const { data, error } = await supabase
@@ -60,7 +88,10 @@ export default function BedsPage() {
         })
         .select()
         .single()
-      if (!error && data) setBeds(prev => [data, ...prev])
+      if (!error && data) {
+        setBeds(prev => [data, ...prev])
+        await linkPlantsToBed(data.id, data.name, bed.plants)
+      }
     }
     setShowBuilder(false)
     setEditingBed(null)
@@ -96,6 +127,7 @@ export default function BedsPage() {
   if (showBuilder || editingBed) return (
     <BedBuilder
       bed={editingBed}
+      unplacedPlants={unplacedPlants}
       onSave={saveBed}
       onCancel={() => { setShowBuilder(false); setEditingBed(null) }}
     />
@@ -121,7 +153,6 @@ export default function BedsPage() {
           <Plus size={16} /> New Bed
         </button>
       </div>
-
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-2 border-garden-500 border-t-transparent rounded-full animate-spin" />
@@ -159,7 +190,6 @@ function BedCard({ bed, onView, onEdit, onDelete }) {
   const totalPlaced = plants.reduce((s, p) => s + (p.placed?.length || 0), 0)
   const cols = Math.min((bed.length || 4) * 2, 12)
   const rows = Math.min((bed.width || 4) * 2, 6)
-
   const grid = Array(rows).fill(null).map(() => Array(cols).fill(null))
   plants.forEach(plant => {
     (plant.placed || []).forEach(pos => {
@@ -168,7 +198,6 @@ function BedCard({ bed, onView, onEdit, onDelete }) {
       }
     })
   })
-
   return (
     <div className="card hover:shadow-card-hover transition-all duration-200">
       <div className="flex items-start justify-between mb-3">
@@ -185,7 +214,6 @@ function BedCard({ bed, onView, onEdit, onDelete }) {
           </button>
         </div>
       </div>
-
       <div className="bg-garden-50 rounded-xl p-3 mb-3 border border-garden-100 cursor-pointer" onClick={onView}>
         <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
           {grid.map((row, ri) =>
@@ -199,7 +227,6 @@ function BedCard({ bed, onView, onEdit, onDelete }) {
         </div>
         <p className="text-center text-xs text-garden-400 mt-2">Click to view full diagram</p>
       </div>
-
       <div className="flex flex-wrap gap-1.5 mb-3">
         {plants.filter(p => (p.placed?.length || 0) > 0).map(p => (
           <span key={p.id} className="flex items-center gap-1 text-xs bg-white border border-garden-200 px-2 py-1 rounded-full">
@@ -207,7 +234,6 @@ function BedCard({ bed, onView, onEdit, onDelete }) {
           </span>
         ))}
       </div>
-
       <button onClick={onView} className="w-full btn-primary text-sm justify-center py-2">
         View & Edit Layout
       </button>
