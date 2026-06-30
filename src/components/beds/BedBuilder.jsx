@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, Plus, Trash2, Check, X, Search } from 'lucide-react'
-
+import { ArrowLeft, Plus, Trash2, Check, X, Search, Sprout } from 'lucide-react'
 // ─── COMPREHENSIVE PLANT LIBRARY ───────────────────────────────────────────
 const PLANT_CATEGORIES = {
   'Vegetables': [
@@ -165,7 +164,6 @@ const PLANT_CATEGORIES = {
     { name:'Redbud',        emoji:'🌸', color:'#db2777' },
   ],
 }
-
 // Keyword → emoji map for custom plant search
 const EMOJI_MAP = {
   tomato:'🍅', pepper:'🌶️', cucumber:'🥒', squash:'🎃', zucchini:'🥒',
@@ -181,7 +179,6 @@ const EMOJI_MAP = {
   tree:'🌲', shrub:'🌿', grass:'🌾', fern:'🌿', cactus:'🌵',
   herb:'🌿', flower:'🌸', fruit:'🍑', vegetable:'🥬',
 }
-
 function guessEmoji(name) {
   const lower = name.toLowerCase()
   for (const [keyword, emoji] of Object.entries(EMOJI_MAP)) {
@@ -189,10 +186,8 @@ function guessEmoji(name) {
   }
   return '🌱'
 }
-
 let plantIdCounter = 100
-
-export default function BedBuilder({ bed, onSave, onCancel }) {
+export default function BedBuilder({ bed, unplacedPlants = [], onSave, onCancel }) {
   const [step, setStep] = useState(bed ? 2 : 0)
   const [name, setName] = useState(bed?.name || '')
   const [length, setLength] = useState(bed?.length || '')
@@ -203,10 +198,8 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
   const [dragOver, setDragOver] = useState(null)
   const [selectedPlant, setSelectedPlant] = useState(null) // for mobile tap mode
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024
-
   const cols = Math.min(parseInt(length) * 2 || 0, 24)
   const rows = Math.min(parseInt(width) * 2 || 0, 16)
-
   const grid = Array(rows).fill(null).map(() => Array(cols).fill(null))
   plants.forEach(plant => {
     plant.placed?.forEach(pos => {
@@ -215,23 +208,24 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
       }
     })
   })
-
+  // IDs of tracked plants already added to this bed's palette
+  const addedSourceIds = plants.filter(p => p.sourcePlantId).map(p => p.sourcePlantId)
+  const availableTracked = unplacedPlants.filter(p => !addedSourceIds.includes(p.id))
   const addPlant = (template) => {
     const newPlant = {
       id: `plant-${++plantIdCounter}`,
       name: template.name,
       emoji: template.emoji,
       color: template.color,
+      sourcePlantId: template.sourcePlantId || null,
       placed: []
     }
     setPlants(prev => [...prev, newPlant])
     setShowPlantPicker(false)
   }
-
   const removePlant = (plantId) => {
     setPlants(prev => prev.filter(p => p.id !== plantId))
   }
-
   const handleCellDrop = (row, col) => {
     if (!dragging) return
     const occupied = plants.some(p => p.placed?.some(pos => pos.row === row && pos.col === col))
@@ -247,24 +241,20 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
     setDragging(null)
     setDragOver(null)
   }
-
   const removeFromCell = (row, col) => {
     setPlants(prev => prev.map(p => ({
       ...p,
       placed: p.placed.filter(pos => !(pos.row === row && pos.col === col))
     })))
   }
-
   const handleSave = () => {
     onSave({ id: bed?.id, name, length: parseInt(length), width: parseInt(width), plants })
   }
-
   const canProceed = () => {
     if (step === 0) return name.trim()
     if (step === 1) return length && width && parseInt(length) > 0 && parseInt(width) > 0
     return true
   }
-
   return (
     <div className="min-h-screen bg-parchment pb-24">
       {/* Header */}
@@ -289,9 +279,7 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
           ))}
         </div>
       </div>
-
       <div className="px-4 py-5 max-w-3xl mx-auto">
-
         {/* STEP 0: Name */}
         {step === 0 && (
           <div className="space-y-4 fade-in">
@@ -312,7 +300,6 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
             </div>
           </div>
         )}
-
         {/* STEP 1: Size */}
         {step === 1 && (
           <div className="space-y-4 fade-in">
@@ -352,7 +339,6 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
             </div>
           </div>
         )}
-
         {/* STEP 2: Plant it */}
         {step === 2 && (
           <div className="space-y-4 fade-in">
@@ -360,7 +346,6 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
               <h2 className="font-display text-2xl font-semibold text-garden-900 mb-1">Plant your {name}</h2>
               <p className="text-garden-500 text-sm">{isMobile ? 'Tap a plant to select it, then tap cells in the grid to place it' : 'Add plants then drag them into position on the grid'}</p>
             </div>
-
             {/* Plant Palette */}
             <div className="card">
               <div className="flex items-center justify-between mb-3">
@@ -387,7 +372,12 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
                         {plant.emoji}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-garden-800">{plant.name}</p>
+                        <p className="text-sm font-medium text-garden-800 flex items-center gap-1.5">
+                          {plant.name}
+                          {plant.sourcePlantId && (
+                            <span className="text-[9px] font-semibold text-garden-600 bg-garden-100 border border-garden-200 px-1.5 py-0.5 rounded-full">tracked</span>
+                          )}
+                        </p>
                         <p className="text-xs text-garden-400">
                           {isMobile && selectedPlant?.id === plant.id
                             ? '✅ Selected — tap grid to place'
@@ -403,7 +393,6 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
                 </div>
               )}
             </div>
-
             {/* Bed Grid */}
             {rows > 0 && cols > 0 && (
               <div className="card overflow-x-auto">
@@ -490,15 +479,14 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
           </div>
         )}
       </div>
-
       {/* ── PLANT PICKER MODAL ── */}
       {showPlantPicker && (
         <PlantPickerModal
           onAdd={addPlant}
           onClose={() => setShowPlantPicker(false)}
+          availableTracked={availableTracked}
         />
       )}
-
       {/* Bottom nav */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-garden-100 px-4 py-3 flex gap-3">
         {step > 0 && (
@@ -518,20 +506,16 @@ export default function BedBuilder({ bed, onSave, onCancel }) {
     </div>
   )
 }
-
 // ── PLANT PICKER MODAL ────────────────────────────────────────────────────
-function PlantPickerModal({ onAdd, onClose }) {
+function PlantPickerModal({ onAdd, onClose, availableTracked = [] }) {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('Vegetables')
   const [customName, setCustomName] = useState('')
-
   const categories = Object.keys(PLANT_CATEGORIES)
-
   const filtered = search.trim()
     ? Object.values(PLANT_CATEGORIES).flat().filter(p =>
         p.name.toLowerCase().includes(search.toLowerCase()))
     : PLANT_CATEGORIES[activeCategory] || []
-
   const handleCustomAdd = () => {
     if (!customName.trim()) return
     onAdd({
@@ -541,7 +525,6 @@ function PlantPickerModal({ onAdd, onClose }) {
     })
     setCustomName('')
   }
-
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-xl">
@@ -551,7 +534,6 @@ function PlantPickerModal({ onAdd, onClose }) {
             <h3 className="font-display text-xl font-semibold text-garden-900">Add a plant</h3>
             <button onClick={onClose}><X size={20} className="text-garden-400" /></button>
           </div>
-
           {/* Search */}
           <div className="relative mb-3">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-garden-400" />
@@ -564,7 +546,6 @@ function PlantPickerModal({ onAdd, onClose }) {
               autoFocus
             />
           </div>
-
           {/* Custom plant entry */}
           <div className="flex gap-2 mb-3">
             <input
@@ -580,7 +561,6 @@ function PlantPickerModal({ onAdd, onClose }) {
               Add
             </button>
           </div>
-
           {/* Category tabs */}
           {!search && (
             <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -600,9 +580,37 @@ function PlantPickerModal({ onAdd, onClose }) {
             <p className="text-xs text-garden-500">{filtered.length} results for "{search}"</p>
           )}
         </div>
-
         {/* Plant grid */}
         <div className="overflow-y-auto flex-1 px-5 pb-5">
+          {/* From My Plants — tracked, unplaced plants */}
+          {!search && availableTracked.length > 0 && (
+            <div className="mb-4">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Sprout size={14} className="text-garden-600" />
+                <h4 className="text-xs font-semibold text-garden-700">From My Plants</h4>
+              </div>
+              <div className="space-y-1.5">
+                {availableTracked.map(tp => (
+                  <button key={tp.id}
+                    onClick={() => onAdd({
+                      name: tp.name,
+                      emoji: guessEmoji(tp.name),
+                      color: '#4a9e3f',
+                      sourcePlantId: tp.id,
+                    })}
+                    className="w-full flex items-center gap-3 p-2.5 bg-garden-50 hover:bg-garden-100 border border-garden-200 rounded-xl transition-all active:scale-[0.98] text-left">
+                    <span className="text-xl">{guessEmoji(tp.name)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-garden-800 truncate">{tp.name}</p>
+                      <p className="text-[11px] text-garden-400">{tp.category || 'Needs a bed'}</p>
+                    </div>
+                    <Plus size={15} className="text-garden-500 flex-shrink-0" />
+                  </button>
+                ))}
+              </div>
+              <div className="border-t border-garden-100 mt-4" />
+            </div>
+          )}
           {filtered.length === 0 && search ? (
             <div className="text-center py-8">
               <p className="text-garden-400 text-sm mb-3">No plants found for "{search}"</p>
