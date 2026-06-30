@@ -5,7 +5,6 @@ import { useAuth } from '../lib/AuthContext'
 import PlantCard from '../components/plants/PlantCard'
 import AddPlantWizard from '../components/plants/AddPlantWizard'
 import PlantDetail from '../components/plants/PlantDetail'
-
 const STATUS_COLORS = {
   Unplanted:  { bg: 'bg-slate-100',   text: 'text-slate-600',   dot: 'bg-slate-400' },
   Seeded:     { bg: 'bg-amber-100',   text: 'text-amber-800',   dot: 'bg-amber-400' },
@@ -17,10 +16,8 @@ const STATUS_COLORS = {
   Harvesting: { bg: 'bg-red-100',     text: 'text-red-800',     dot: 'bg-red-400' },
   Finished:   { bg: 'bg-gray-100',    text: 'text-gray-600',    dot: 'bg-gray-400' },
 }
-
 const SORT_OPTIONS = ['Recently Updated', 'Plant Type', 'Bed', 'Status']
 const STATUS_FILTERS = ['All', ...Object.keys(STATUS_COLORS)]
-
 function guessCategory(name) {
   const lower = name.toLowerCase()
   if (['tomato','pepper','cucumber','zucchini','squash','lettuce','carrot','bean','corn','onion','garlic','potato','eggplant','broccoli','cauliflower','spinach','kale','beet','radish','pea','cabbage'].some(v => lower.includes(v))) return 'Vegetable'
@@ -29,7 +26,6 @@ function guessCategory(name) {
   if (['strawberry','blueberry','raspberry','watermelon','melon','grape','apple','peach','cherry'].some(v => lower.includes(v))) return 'Fruit'
   return 'Vegetable'
 }
-
 export default function PlantsPage() {
   const { user } = useAuth()
   const [plants, setPlants] = useState([])
@@ -42,14 +38,12 @@ export default function PlantsPage() {
   const [loading, setLoading] = useState(true)
   const [showImportConfirm, setShowImportConfirm] = useState(false)
   const [importPreview, setImportPreview] = useState([])
-
   // Load plants from Supabase
   useEffect(() => {
     if (!user) return
     fetchPlants()
     fetchBeds()
   }, [user])
-
   const fetchPlants = async () => {
     setLoading(true)
     const { data, error } = await supabase
@@ -60,7 +54,6 @@ export default function PlantsPage() {
     if (!error) setPlants(data || [])
     setLoading(false)
   }
-
   const fetchBeds = async () => {
     const { data } = await supabase
       .from('beds')
@@ -68,7 +61,6 @@ export default function PlantsPage() {
       .eq('user_id', user.id)
     setBeds(data || [])
   }
-
   const addPlant = async (plant) => {
     // Get fresh session to ensure we have valid user
     const { data: { session } } = await supabase.auth.getSession()
@@ -106,7 +98,6 @@ export default function PlantsPage() {
       })
       .select()
       .single()
-
     if (error) {
       console.error('Error saving plant:', JSON.stringify(error))
       alert('Error saving plant: ' + error.message)
@@ -115,7 +106,6 @@ export default function PlantsPage() {
     }
     setShowWizard(false)
   }
-
   const updatePlant = async (updated) => {
     const { data, error } = await supabase
       .from('plants')
@@ -143,13 +133,39 @@ export default function PlantsPage() {
       .eq('user_id', user.id)
       .select()
       .single()
-
     if (!error && data) {
       setPlants(prev => prev.map(p => p.id === data.id ? data : p))
       setSelectedPlant(data)
     }
   }
-
+  // Delete a plant — also strips it out of any bed it was placed in
+  const deletePlant = async (plant) => {
+    if (!confirm(`Delete "${plant.name}"? This cannot be undone.`)) return
+    const { error } = await supabase
+      .from('plants')
+      .delete()
+      .eq('id', plant.id)
+      .eq('user_id', user.id)
+    if (error) {
+      alert('Error deleting plant: ' + error.message)
+      return
+    }
+    // If this plant was linked to a bed, remove it from that bed's plant layout
+    if (plant.bed_id) {
+      const bed = beds.find(b => b.id === plant.bed_id)
+      if (bed) {
+        const newPlants = (bed.plants || []).filter(bp => bp.sourcePlantId !== plant.id)
+        await supabase
+          .from('beds')
+          .update({ plants: newPlants, updated_at: new Date().toISOString() })
+          .eq('id', bed.id)
+          .eq('user_id', user.id)
+        fetchBeds()
+      }
+    }
+    setPlants(prev => prev.filter(p => p.id !== plant.id))
+    if (selectedPlant?.id === plant.id) setSelectedPlant(null)
+  }
   // Import plants from beds that aren't tracked yet
   const buildImportPreview = () => {
     const preview = []
@@ -171,13 +187,11 @@ export default function PlantsPage() {
     })
     return preview
   }
-
   const handleImportClick = () => {
     const preview = buildImportPreview()
     setImportPreview(preview)
     setShowImportConfirm(true)
   }
-
   const confirmImport = async () => {
     for (const p of importPreview) {
       await supabase.from('plants').insert({
@@ -199,7 +213,6 @@ export default function PlantsPage() {
     setShowImportConfirm(false)
     fetchPlants()
   }
-
   const filtered = plants.filter(p => {
     const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase()) ||
                         p.variety?.toLowerCase().includes(search.toLowerCase()) ||
@@ -207,9 +220,7 @@ export default function PlantsPage() {
     const matchStatus = statusFilter === 'All' || p.status === statusFilter
     return matchSearch && matchStatus
   })
-
   const bedsWithUnimported = buildImportPreview().length > 0
-
   if (selectedPlant) return (
     <PlantDetail
       plant={{
@@ -227,14 +238,13 @@ export default function PlantsPage() {
       }}
       onBack={() => setSelectedPlant(null)}
       onUpdate={updatePlant}
+      onDelete={() => deletePlant(selectedPlant)}
       statusColors={STATUS_COLORS}
     />
   )
-
   if (showWizard) return (
     <AddPlantWizard onSave={addPlant} onCancel={() => setShowWizard(false)} />
   )
-
   return (
     <div className="space-y-5 pb-20">
       <div className="flex items-start justify-between gap-3">
@@ -246,7 +256,6 @@ export default function PlantsPage() {
           <Plus size={16} /> Add Plant
         </button>
       </div>
-
       {/* Import banner */}
       {bedsWithUnimported && (
         <div className="card bg-amber-50 border-amber-200">
@@ -265,7 +274,6 @@ export default function PlantsPage() {
           </button>
         </div>
       )}
-
       {/* Search + Filter */}
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -279,7 +287,6 @@ export default function PlantsPage() {
           <SlidersHorizontal size={15} />
         </button>
       </div>
-
       {showFilters && (
         <div className="card space-y-3 fade-in">
           <div>
@@ -295,7 +302,6 @@ export default function PlantsPage() {
           </div>
         </div>
       )}
-
       {/* Status pills */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {Object.entries(STATUS_COLORS).map(([status, colors]) => {
@@ -312,7 +318,6 @@ export default function PlantsPage() {
           )
         })}
       </div>
-
       {/* Loading */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
@@ -356,11 +361,11 @@ export default function PlantsPage() {
               statusColors={STATUS_COLORS}
               onClick={() => setSelectedPlant(plant)}
               onUpdate={updatePlant}
+              onDelete={() => deletePlant(plant)}
             />
           ))}
         </div>
       )}
-
       {/* Import confirm modal */}
       {showImportConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
