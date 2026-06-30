@@ -1,461 +1,373 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, SlidersHorizontal, Leaf } from 'lucide-react'
+import { Plus, ChevronLeft, ChevronRight, X, Check, List, Grid } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-import PlantCard from '../components/plants/PlantCard'
-import AddPlantWizard from '../components/plants/AddPlantWizard'
-import PlantDetail from '../components/plants/PlantDetail'
-const STATUS_COLORS = {
-  Unplanted:  { bg: 'bg-slate-100',   text: 'text-slate-600',   dot: 'bg-slate-400' },
-  Seeded:     { bg: 'bg-amber-100',   text: 'text-amber-800',   dot: 'bg-amber-400' },
-  Sprouting:  { bg: 'bg-yellow-100',  text: 'text-yellow-800',  dot: 'bg-yellow-400' },
-  Seedling:   { bg: 'bg-lime-100',    text: 'text-lime-800',    dot: 'bg-lime-400' },
-  Growing:    { bg: 'bg-garden-100',  text: 'text-garden-800',  dot: 'bg-garden-500' },
-  Flowering:  { bg: 'bg-pink-100',    text: 'text-pink-800',    dot: 'bg-pink-400' },
-  Fruiting:   { bg: 'bg-orange-100',  text: 'text-orange-800',  dot: 'bg-orange-400' },
-  Harvesting: { bg: 'bg-red-100',     text: 'text-red-800',     dot: 'bg-red-400' },
-  Finished:   { bg: 'bg-gray-100',    text: 'text-gray-600',    dot: 'bg-gray-400' },
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+const EVENT_TYPES = {
+  plant:   { label: 'Planted',   bg: 'bg-garden-100',  text: 'text-garden-700',  dot: 'bg-garden-500',  emoji: '🌱' },
+  harvest: { label: 'Harvested', bg: 'bg-amber-100',   text: 'text-amber-700',   dot: 'bg-amber-500',   emoji: '🥕' },
+  task:    { label: 'Task',      bg: 'bg-blue-100',    text: 'text-blue-700',    dot: 'bg-blue-500',    emoji: '✅' },
+  manual:  { label: 'Event',     bg: 'bg-purple-100',  text: 'text-purple-700',  dot: 'bg-purple-500',  emoji: '📅' },
+  frost:   { label: 'Weather',   bg: 'bg-slate-100',   text: 'text-slate-700',   dot: 'bg-slate-500',   emoji: '❄️' },
 }
-const SORT_OPTIONS = ['Recently Updated', 'Plant Type', 'Bed', 'Status']
-const STATUS_FILTERS = ['All', ...Object.keys(STATUS_COLORS)]
-function guessCategory(name) {
-  const lower = name.toLowerCase()
-  if (['tomato','pepper','cucumber','zucchini','squash','lettuce','carrot','bean','corn','onion','garlic','potato','eggplant','broccoli','cauliflower','spinach','kale','beet','radish','pea','cabbage'].some(v => lower.includes(v))) return 'Vegetable'
-  if (['basil','rosemary','mint','lavender','sage','parsley','cilantro','dill','thyme','oregano','chive'].some(v => lower.includes(v))) return 'Herb'
-  if (['rose','zinnia','marigold','sunflower','dahlia','peony','tulip','daisy','lily','flower'].some(v => lower.includes(v))) return 'Flower'
-  if (['strawberry','blueberry','raspberry','watermelon','melon','grape','apple','peach','cherry'].some(v => lower.includes(v))) return 'Fruit'
-  return 'Vegetable'
-}
-// Convert a harvest log date label (e.g. "Jun 29, 2026") to YYYY-MM-DD
-function toISODate(input) {
-  if (!input) return null
-  // Already ISO
-  if (/^\d{4}-\d{2}-\d{2}/.test(input)) return input.slice(0,10)
-  const d = new Date(input)
-  if (isNaN(d)) return null
-  return d.toISOString().slice(0,10)
-}
-export default function PlantsPage() {
+
+const MANUAL_EVENT_TYPES = [
+  { value: 'plant',   label: '🌱 Planted' },
+  { value: 'harvest', label: '🥕 Harvested' },
+  { value: 'task',    label: '✅ Task / Reminder' },
+  { value: 'manual',  label: '📅 General Event' },
+]
+
+export default function CalendarPage() {
   const { user } = useAuth()
-  const [plants, setPlants] = useState([])
-  const [beds, setBeds] = useState([])
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
-  const [showFilters, setShowFilters] = useState(false)
-  const [showWizard, setShowWizard] = useState(false)
-  const [selectedPlant, setSelectedPlant] = useState(null)
+  const today = new Date()
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth())
+  const [currentYear, setCurrentYear] = useState(today.getFullYear())
+  const [events, setEvents] = useState([])
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [selectedDayEvents, setSelectedDayEvents] = useState(null)
+  const [view, setView] = useState('month')
   const [loading, setLoading] = useState(true)
-  const [showImportConfirm, setShowImportConfirm] = useState(false)
-  const [importPreview, setImportPreview] = useState([])
-  // Load plants from Supabase
+
   useEffect(() => {
     if (!user) return
-    fetchPlants()
-    fetchBeds()
+    fetchEvents()
   }, [user])
-  const fetchPlants = async () => {
+
+  const fetchEvents = async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('plants')
+    const { data } = await supabase
+      .from('calendar_events')
       .select('*')
       .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-    if (!error) setPlants(data || [])
+      .order('date', { ascending: true })
+    setEvents(data || [])
     setLoading(false)
   }
-  const fetchBeds = async () => {
-    const { data } = await supabase
-      .from('beds')
-      .select('*')
-      .eq('user_id', user.id)
-    setBeds(data || [])
-  }
-  // Auto-sync a plant's planting + harvest dates to the calendar (no duplicates, no orphans)
-  const syncPlantToCalendar = async (plant) => {
-    if (!plant?.id) return
-    // What the calendar SHOULD contain for this plant
-    const desired = []
-    if (plant.planted_date) {
-      desired.push({ type: 'plant', date: toISODate(plant.planted_date), title: `Planted ${plant.name}` })
-    }
-    const log = Array.isArray(plant.harvest_log) ? plant.harvest_log : []
-    log.forEach(h => {
-      const d = toISODate(h.date)
-      if (d) desired.push({ type: 'harvest', date: d, title: `Harvested ${plant.name}` })
-    })
-    // Existing auto events for this plant
-    const { data: existing } = await supabase
-      .from('calendar_events')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('plant_id', plant.id)
-      .eq('auto', true)
-    const existingRows = existing || []
-    const key = e => `${e.type}|${e.date}`
-    const desiredKeys = new Set(desired.map(key))
-    const existingKeys = new Set(existingRows.map(key))
-    // Insert any desired events that don't exist yet
-    const toInsert = desired
-      .filter(d => d.date && !existingKeys.has(key(d)))
-      .map(d => ({
-        user_id: user.id,
-        title: d.title,
-        date: d.date,
-        type: d.type,
-        auto: true,
-        plant_id: plant.id,
-      }))
-    if (toInsert.length) {
-      await supabase.from('calendar_events').insert(toInsert)
-    }
-    // Remove auto events that are no longer desired (e.g. deleted harvest)
-    const toDelete = existingRows.filter(e => !desiredKeys.has(key(e))).map(e => e.id)
-    if (toDelete.length) {
-      await supabase.from('calendar_events').delete().in('id', toDelete).eq('user_id', user.id)
-    }
-  }
-  const addPlant = async (plant) => {
-    // Get fresh session to ensure we have valid user
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user) {
-      alert('You must be logged in to save plants')
-      return
-    }
-    const userId = session.user.id
+
+  const addEvent = async (event) => {
     const { data, error } = await supabase
-      .from('plants')
+      .from('calendar_events')
       .insert({
-        user_id: userId,
-        name: plant.name || 'New Plant',
-        variety: plant.variety || null,
-        category: plant.category || 'Vegetable',
-        status: plant.status || 'Unplanted',
-        health: plant.health || 'Good',
-        bed: plant.bed || null,
-        seeds_planted: parseInt(plant.seedsPlanted) || 0,
-        seeds_sprouted: parseInt(plant.seedsSprouted) || 0,
-        seeds_in_pack: parseInt(plant.seedsInPack) || 0,
-        planted_date: plant.plantedDate || null,
-        germ_days: parseInt(plant.germDays) || null,
-        start_location: plant.startLocation || null,
-        sun_exposure: plant.sunExposure || null,
-        seed_source: plant.seedSource || null,
-        seed_packet_name: plant.seedPacketName || null,
-        next_action: plant.nextAction || 'Watch for Sprouts',
-        days_to_harvest: parseInt(plant.daysToHarvest) || 0,
-        germ_rate: 0,
-        harvest_log: [],
-        milestones: [],
-        notes: [],
-        imported_from_ledger: plant.importedFromLedger || false,
-      })
-      .select()
-      .single()
-    if (error) {
-      console.error('Error saving plant:', JSON.stringify(error))
-      alert('Error saving plant: ' + error.message)
-    } else if (data) {
-      setPlants(prev => [data, ...prev])
-      await syncPlantToCalendar(data)
-    }
-    setShowWizard(false)
-  }
-  const updatePlant = async (updated) => {
-    const { data, error } = await supabase
-      .from('plants')
-      .update({
-        name: updated.name,
-        variety: updated.variety,
-        category: updated.category,
-        status: updated.status,
-        health: updated.health,
-        bed: updated.bed,
-        seeds_planted: updated.seedsPlanted || updated.seeds_planted || 0,
-        seeds_sprouted: updated.seedsSprouted || updated.seeds_sprouted || 0,
-        planted_date: updated.plantedDate || updated.planted_date,
-        next_action: updated.nextAction || updated.next_action,
-        days_to_harvest: updated.daysToHarvest || updated.days_to_harvest || 0,
-        germ_rate: updated.germRate || updated.germ_rate || 0,
-        grow_again: updated.growAgain ?? updated.grow_again,
-        harvest_log: updated.harvestLog || updated.harvest_log || [],
-        milestones: updated.milestones || [],
-        notes: updated.notes || [],
-        photo_url: updated.photoUrl || updated.photo_url,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', updated.id)
-      .eq('user_id', user.id)
-      .select()
-      .single()
-    if (!error && data) {
-      setPlants(prev => prev.map(p => p.id === data.id ? data : p))
-      setSelectedPlant(data)
-      await syncPlantToCalendar(data)
-    }
-  }
-  // Delete a plant — also strips it out of any bed it was placed in + removes its auto calendar events
-  const deletePlant = async (plant) => {
-    if (!confirm(`Delete "${plant.name}"? This cannot be undone.`)) return
-    const { error } = await supabase
-      .from('plants')
-      .delete()
-      .eq('id', plant.id)
-      .eq('user_id', user.id)
-    if (error) {
-      alert('Error deleting plant: ' + error.message)
-      return
-    }
-    // Remove this plant's auto calendar events
-    await supabase
-      .from('calendar_events')
-      .delete()
-      .eq('user_id', user.id)
-      .eq('plant_id', plant.id)
-      .eq('auto', true)
-    // If this plant was linked to a bed, remove it from that bed's plant layout
-    if (plant.bed_id) {
-      const bed = beds.find(b => b.id === plant.bed_id)
-      if (bed) {
-        const newPlants = (bed.plants || []).filter(bp => bp.sourcePlantId !== plant.id)
-        await supabase
-          .from('beds')
-          .update({ plants: newPlants, updated_at: new Date().toISOString() })
-          .eq('id', bed.id)
-          .eq('user_id', user.id)
-        fetchBeds()
-      }
-    }
-    setPlants(prev => prev.filter(p => p.id !== plant.id))
-    if (selectedPlant?.id === plant.id) setSelectedPlant(null)
-  }
-  // Import plants from beds that aren't tracked yet
-  const buildImportPreview = () => {
-    const preview = []
-    beds.forEach(bed => {
-      const bedPlants = bed.plants || []
-      bedPlants.forEach(plant => {
-        if (!plant.placed?.length) return
-        const alreadyExists = plants.some(p =>
-          p.name.toLowerCase() === plant.name.toLowerCase() && p.bed === bed.name)
-        if (!alreadyExists) {
-          preview.push({
-            name: plant.name,
-            category: guessCategory(plant.name),
-            bed: bed.name,
-            seedsPlanted: plant.placed.length,
-          })
-        }
-      })
-    })
-    return preview
-  }
-  const handleImportClick = () => {
-    const preview = buildImportPreview()
-    setImportPreview(preview)
-    setShowImportConfirm(true)
-  }
-  const confirmImport = async () => {
-    for (const p of importPreview) {
-      await supabase.from('plants').insert({
         user_id: user.id,
-        name: p.name,
-        category: p.category,
-        status: 'Growing',
-        health: 'Good',
-        bed: p.bed,
-        seeds_planted: p.seedsPlanted,
-        seeds_sprouted: p.seedsPlanted,
-        germ_rate: 100,
-        next_action: 'Check on plant',
-        harvest_log: [],
-        milestones: [],
-        notes: [],
+        title: event.title,
+        date: event.date,
+        type: event.type || 'manual',
+        notes: event.notes || null,
+        auto: false,
       })
-    }
-    setShowImportConfirm(false)
-    fetchPlants()
+      .select()
+      .single()
+    if (!error && data) setEvents(prev => [...prev, data])
+    setShowAddModal(false)
+    setSelectedDate(null)
   }
-  const filtered = plants.filter(p => {
-    const matchSearch = p.name?.toLowerCase().includes(search.toLowerCase()) ||
-                        p.variety?.toLowerCase().includes(search.toLowerCase()) ||
-                        p.bed?.toLowerCase().includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'All' || p.status === statusFilter
-    return matchSearch && matchStatus
-  })
-  const bedsWithUnimported = buildImportPreview().length > 0
-  if (selectedPlant) return (
-    <PlantDetail
-      plant={{
-        ...selectedPlant,
-        seedsPlanted: selectedPlant.seeds_planted,
-        seedsSprouted: selectedPlant.seeds_sprouted,
-        seedsInPack: selectedPlant.seeds_in_pack,
-        plantedDate: selectedPlant.planted_date,
-        nextAction: selectedPlant.next_action,
-        daysToHarvest: selectedPlant.days_to_harvest,
-        germRate: selectedPlant.germ_rate,
-        growAgain: selectedPlant.grow_again,
-        harvestLog: selectedPlant.harvest_log,
-        seedSource: selectedPlant.seed_source,
-      }}
-      onBack={() => setSelectedPlant(null)}
-      onUpdate={updatePlant}
-      onDelete={() => deletePlant(selectedPlant)}
-      statusColors={STATUS_COLORS}
-    />
-  )
-  if (showWizard) return (
-    <AddPlantWizard onSave={addPlant} onCancel={() => setShowWizard(false)} />
-  )
+
+  const deleteEvent = async (id) => {
+    await supabase.from('calendar_events').delete().eq('id', id).eq('user_id', user.id)
+    setEvents(prev => prev.filter(e => e.id !== id))
+  }
+
+  const getEventsForDate = (dateStr) => events.filter(e => e.date === dateStr)
+
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay()
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+  const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate()
+
+  const prevMonth = () => {
+    if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(y => y - 1) }
+    else setCurrentMonth(m => m - 1)
+  }
+  const nextMonth = () => {
+    if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(y => y + 1) }
+    else setCurrentMonth(m => m + 1)
+  }
+
+  const formatDate = (year, month, day) =>
+    `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+
+  const handleDayClick = (dateStr) => {
+    const dayEvents = getEventsForDate(dateStr)
+    if (dayEvents.length > 0) {
+      setSelectedDayEvents({ date: dateStr, events: dayEvents })
+    } else {
+      setSelectedDate(dateStr)
+      setShowAddModal(true)
+    }
+  }
+
+  const isToday = (dateStr) => dateStr === today.toISOString().slice(0,10)
+
+  const upcomingEvents = [...events]
+    .filter(e => e.date >= today.toISOString().slice(0,10))
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, 30)
+
+  const pastEvents = [...events]
+    .filter(e => e.date < today.toISOString().slice(0,10))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 20)
+
+  const formatDisplayDate = (dateStr) => {
+    try {
+      return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    } catch { return dateStr }
+  }
+
+  const cells = []
+  for (let i = firstDay - 1; i >= 0; i--) cells.push({ day: daysInPrevMonth - i, currentMonth: false, dateStr: null })
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, currentMonth: true, dateStr: formatDate(currentYear, currentMonth, d) })
+  const remaining = 42 - cells.length
+  for (let i = 1; i <= remaining; i++) cells.push({ day: i, currentMonth: false, dateStr: null })
+
   return (
-    <div className="space-y-5 pb-20">
-      <div className="flex items-start justify-between gap-3">
+    <div className="space-y-4 pb-20">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-semibold text-garden-900">My Plants</h1>
-          <p className="text-garden-500 text-sm mt-1">{plants.length} plants this season</p>
+          <h1 className="font-display text-3xl font-semibold text-garden-900">Calendar</h1>
+          <p className="text-garden-500 text-sm mt-1">{events.length} events this season</p>
         </div>
-        <button onClick={() => setShowWizard(true)} className="btn-primary flex-shrink-0">
-          <Plus size={16} /> Add Plant
-        </button>
-      </div>
-      {/* Import banner */}
-      {bedsWithUnimported && (
-        <div className="card bg-amber-50 border-amber-200">
-          <div className="flex items-start gap-3">
-            <span className="text-2xl flex-shrink-0">🛏️</span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-amber-900">
-                You have plants in your beds not yet tracked in My Plants
-              </p>
-              <p className="text-xs text-amber-700 mt-0.5">Import them to track germination, health, and harvests</p>
-            </div>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-white border border-garden-200 rounded-xl overflow-hidden">
+            <button onClick={() => setView('month')}
+              className={`px-3 py-2 text-xs font-medium transition-colors flex items-center gap-1 ${view === 'month' ? 'bg-garden-600 text-white' : 'text-garden-600 hover:bg-garden-50'}`}>
+              <Grid size={13} /> Month
+            </button>
+            <button onClick={() => setView('list')}
+              className={`px-3 py-2 text-xs font-medium transition-colors flex items-center gap-1 ${view === 'list' ? 'bg-garden-600 text-white' : 'text-garden-600 hover:bg-garden-50'}`}>
+              <List size={13} /> List
+            </button>
           </div>
-          <button onClick={handleImportClick}
-            className="mt-3 w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition-colors">
-            Import from my beds
+          <button onClick={() => { setSelectedDate(today.toISOString().slice(0,10)); setShowAddModal(true) }}
+            className="btn-primary text-sm">
+            <Plus size={14} /> Add Event
           </button>
         </div>
-      )}
-      {/* Search + Filter */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-garden-400" />
-          <input type="text" placeholder="Search plants, beds..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="input-field pl-9" />
-        </div>
-        <button onClick={() => setShowFilters(!showFilters)}
-          className={`btn-secondary px-3 flex-shrink-0 ${showFilters ? 'bg-garden-100 border-garden-300' : ''}`}>
-          <SlidersHorizontal size={15} />
-        </button>
       </div>
-      {showFilters && (
-        <div className="card space-y-3 fade-in">
-          <div>
-            <p className="text-xs font-medium text-garden-600 mb-2">Filter by status</p>
-            <div className="flex flex-wrap gap-2">
-              {STATUS_FILTERS.map(s => (
-                <button key={s} onClick={() => setStatusFilter(s)}
-                  className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-all ${
-                    statusFilter === s ? 'bg-garden-600 text-white border-garden-600' : 'bg-white text-garden-600 border-garden-200 hover:border-garden-400'
-                  }`}>{s}</button>
-              ))}
-            </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3">
+        {Object.entries(EVENT_TYPES).map(([key, type]) => (
+          <div key={key} className="flex items-center gap-1.5">
+            <div className={`w-2.5 h-2.5 rounded-full ${type.dot}`} />
+            <span className="text-xs text-garden-500">{type.emoji} {type.label}</span>
           </div>
-        </div>
-      )}
-      {/* Status pills */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {Object.entries(STATUS_COLORS).map(([status, colors]) => {
-          const count = plants.filter(p => p.status === status).length
-          if (!count) return null
-          return (
-            <button key={status} onClick={() => setStatusFilter(status === statusFilter ? 'All' : status)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 border transition-all ${
-                statusFilter === status ? `${colors.bg} ${colors.text} border-transparent` : 'bg-white text-garden-600 border-garden-200'
-              }`}>
-              <div className={`w-2 h-2 rounded-full ${colors.dot}`} />
-              {status} · {count}
-            </button>
-          )
-        })}
+        ))}
       </div>
-      {/* Loading */}
+
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-2 border-garden-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="card text-center py-16">
-          <div className="w-16 h-16 bg-garden-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Leaf size={28} className="text-garden-400" />
-          </div>
-          <h3 className="font-display text-lg font-semibold text-garden-800 mb-2">
-            {plants.length === 0 ? 'No plants yet' : 'No plants found'}
-          </h3>
-          <p className="text-garden-400 text-sm mb-5">
-            {plants.length === 0 ? 'Add your first plant to get started' : `No plants matching "${search}"`}
-          </p>
-          {plants.length === 0 && (
-            <button onClick={() => setShowWizard(true)} className="btn-primary mx-auto">
-              <Plus size={15} /> Add your first plant
+      ) : view === 'month' ? (
+        <div className="card p-0 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-garden-100">
+            <button onClick={prevMonth} className="w-8 h-8 rounded-lg hover:bg-garden-50 flex items-center justify-center transition-colors">
+              <ChevronLeft size={16} className="text-garden-600" />
             </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map(plant => (
-            <PlantCard
-              key={plant.id}
-              plant={{
-                ...plant,
-                seedsPlanted: plant.seeds_planted,
-                seedsSprouted: plant.seeds_sprouted,
-                seedsInPack: plant.seeds_in_pack,
-                plantedDate: plant.planted_date,
-                nextAction: plant.next_action,
-                daysToHarvest: plant.days_to_harvest,
-                germRate: plant.germ_rate,
-                growAgain: plant.grow_again,
-                harvestLog: plant.harvest_log,
-                seedSource: plant.seed_source,
-              }}
-              statusColors={STATUS_COLORS}
-              onClick={() => setSelectedPlant(plant)}
-              onUpdate={updatePlant}
-              onDelete={() => deletePlant(plant)}
-            />
-          ))}
-        </div>
-      )}
-      {/* Import confirm modal */}
-      {showImportConfirm && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
-            <div className="px-5 pt-5 pb-3 border-b border-garden-100">
-              <h3 className="font-display text-lg font-semibold text-garden-900 mb-1">
-                Import {importPreview.length} {importPreview.length === 1 ? 'plant' : 'plants'}
-              </h3>
-              <p className="text-xs text-garden-500">These will be added to My Plants from your beds</p>
-            </div>
-            <div className="px-5 py-4 max-h-64 overflow-y-auto space-y-2">
-              {importPreview.map((p, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 bg-garden-50 rounded-xl border border-garden-100">
-                  <span className="text-xl">🌱</span>
-                  <div>
-                    <p className="text-sm font-medium text-garden-800">{p.name}</p>
-                    <p className="text-xs text-garden-400">{p.bed} · {p.seedsPlanted} plants</p>
+            <h2 className="font-display text-lg font-semibold text-garden-900">{MONTHS[currentMonth]} {currentYear}</h2>
+            <button onClick={nextMonth} className="w-8 h-8 rounded-lg hover:bg-garden-50 flex items-center justify-center transition-colors">
+              <ChevronRight size={16} className="text-garden-600" />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 border-b border-garden-100">
+            {DAYS.map(d => <div key={d} className="py-2 text-center text-xs font-medium text-garden-400">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7">
+            {cells.map((cell, idx) => {
+              const dayEvents = cell.dateStr ? getEventsForDate(cell.dateStr) : []
+              const isCurrentDay = cell.dateStr && isToday(cell.dateStr)
+              return (
+                <div key={idx}
+                  onClick={() => cell.currentMonth && cell.dateStr && handleDayClick(cell.dateStr)}
+                  className={`min-h-[72px] p-1.5 border-r border-b border-garden-50 transition-colors ${cell.currentMonth ? 'cursor-pointer hover:bg-garden-50' : 'bg-gray-50/50'}`}>
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium mb-1 ${isCurrentDay ? 'text-white' : cell.currentMonth ? 'text-garden-800' : 'text-garden-300'}`}
+                    style={isCurrentDay ? { backgroundColor: '#1e3d1a' } : {}}>
+                    {cell.day}
+                  </div>
+                  <div className="space-y-0.5">
+                    {dayEvents.slice(0, 3).map((event, i) => {
+                      const type = EVENT_TYPES[event.type] || EVENT_TYPES.manual
+                      return (
+                        <div key={i} className={`text-[10px] px-1 py-0.5 rounded font-medium truncate ${type.bg} ${type.text}`}>
+                          {type.emoji} {event.title}
+                        </div>
+                      )
+                    })}
+                    {dayEvents.length > 3 && <div className="text-[10px] text-garden-400 px-1">+{dayEvents.length - 3} more</div>}
                   </div>
                 </div>
-              ))}
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {upcomingEvents.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-garden-500 uppercase tracking-wide mb-2">Upcoming</p>
+              <div className="space-y-2">
+                {upcomingEvents.map(event => {
+                  const type = EVENT_TYPES[event.type] || EVENT_TYPES.manual
+                  return (
+                    <div key={event.id} className="card flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${type.dot}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-garden-900 truncate">{event.title}</p>
+                        <p className="text-xs text-garden-400">{formatDisplayDate(event.date)}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${type.bg} ${type.text} flex-shrink-0`}>{type.emoji} {type.label}</span>
+                      {!event.auto && (
+                        <button onClick={() => deleteEvent(event.id)}
+                          className="w-6 h-6 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center flex-shrink-0">
+                          <X size={10} className="text-red-400" />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <div className="px-5 py-4 border-t border-garden-100 flex gap-3">
-              <button onClick={() => setShowImportConfirm(false)} className="btn-secondary flex-1 justify-center py-2">Cancel</button>
-              <button onClick={confirmImport} className="btn-primary flex-1 justify-center py-2">Import all</button>
+          )}
+          {pastEvents.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-garden-500 uppercase tracking-wide mb-2">Past events</p>
+              <div className="space-y-2 opacity-70">
+                {pastEvents.map(event => {
+                  const type = EVENT_TYPES[event.type] || EVENT_TYPES.manual
+                  return (
+                    <div key={event.id} className="card flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${type.dot}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-garden-900 truncate line-through">{event.title}</p>
+                        <p className="text-xs text-garden-400">{formatDisplayDate(event.date)}</p>
+                      </div>
+                      {!event.auto && (
+                        <button onClick={() => deleteEvent(event.id)}
+                          className="w-6 h-6 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center flex-shrink-0">
+                          <X size={10} className="text-red-400" />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+          {events.length === 0 && (
+            <div className="card text-center py-16">
+              <p className="text-garden-400 text-sm">No events yet</p>
+              <p className="text-garden-300 text-xs mt-1">Add plants in My Plants — they'll appear here automatically</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Day events modal */}
+      {selectedDayEvents && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="px-5 pt-5 pb-3 border-b border-garden-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-display text-lg font-semibold text-garden-900">{formatDisplayDate(selectedDayEvents.date)}</h3>
+                <p className="text-xs text-garden-400">{selectedDayEvents.events.length} events</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setSelectedDate(selectedDayEvents.date); setSelectedDayEvents(null); setShowAddModal(true) }}
+                  className="btn-primary text-xs py-1.5 px-3"><Plus size={12} /> Add</button>
+                <button onClick={() => setSelectedDayEvents(null)}><X size={18} className="text-garden-400" /></button>
+              </div>
+            </div>
+            <div className="px-5 py-4 space-y-2 max-h-80 overflow-y-auto">
+              {selectedDayEvents.events.map(event => {
+                const type = EVENT_TYPES[event.type] || EVENT_TYPES.manual
+                return (
+                  <div key={event.id} className={`flex items-center gap-3 p-3 rounded-xl ${type.bg}`}>
+                    <span className="text-lg">{type.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${type.text}`}>{event.title}</p>
+                      {event.notes && <p className="text-xs text-garden-500 mt-0.5">{event.notes}</p>}
+                    </div>
+                    {!event.auto && (
+                      <button onClick={() => { deleteEvent(event.id); setSelectedDayEvents(null) }}
+                        className="w-6 h-6 rounded-lg bg-white/50 hover:bg-red-100 flex items-center justify-center">
+                        <X size={10} className="text-red-400" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
       )}
+
+      {showAddModal && (
+        <AddEventModal
+          defaultDate={selectedDate || today.toISOString().slice(0,10)}
+          onSave={addEvent}
+          onClose={() => { setShowAddModal(false); setSelectedDate(null) }}
+        />
+      )}
+    </div>
+  )
+}
+
+function AddEventModal({ defaultDate, onSave, onClose }) {
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState(defaultDate)
+  const [type, setType] = useState('manual')
+  const [notes, setNotes] = useState('')
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+        <div className="px-5 pt-5 pb-4 border-b border-garden-100 flex items-center justify-between">
+          <h3 className="font-display text-lg font-semibold text-garden-900">Add event</h3>
+          <button onClick={onClose}><X size={18} className="text-garden-400" /></button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-garden-700 mb-2">Event type</label>
+            <div className="grid grid-cols-2 gap-2">
+              {MANUAL_EVENT_TYPES.map(t => (
+                <button key={t.value} onClick={() => setType(t.value)}
+                  className={`p-2.5 rounded-xl border-2 text-sm font-medium text-left transition-all ${
+                    type === t.value ? 'border-garden-500 bg-garden-50 text-garden-800' : 'border-garden-100 bg-white text-garden-600 hover:border-garden-300'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-garden-700 mb-1.5">What is it? *</label>
+            <input className="input-field" placeholder="e.g. Water tomatoes, First frost expected"
+              value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-garden-700 mb-1.5">Date *</label>
+            <input type="date" className="input-field" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-garden-700 mb-1.5">Notes <span className="text-garden-400 font-normal">(optional)</span></label>
+            <input className="input-field text-sm" placeholder="Any extra details..."
+              value={notes} onChange={e => setNotes(e.target.value)} />
+          </div>
+        </div>
+        <div className="px-5 py-4 border-t border-garden-100 flex gap-3">
+          <button onClick={onClose} className="btn-secondary flex-1 justify-center py-2.5 text-sm">Cancel</button>
+          <button onClick={() => title.trim() && date && onSave({ title, date, type, notes })}
+            disabled={!title.trim() || !date}
+            className="btn-primary flex-1 justify-center py-2.5 text-sm disabled:opacity-40">
+            <Check size={14} /> Save Event
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
