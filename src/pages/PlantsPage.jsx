@@ -26,6 +26,13 @@ function guessCategory(name) {
   if (['strawberry','blueberry','raspberry','watermelon','melon','grape','apple','peach','cherry'].some(v => lower.includes(v))) return 'Fruit'
   return 'Vegetable'
 }
+function toISODate(input) {
+  if (!input) return null
+  if (/^\d{4}-\d{2}-\d{2}/.test(input)) return input.slice(0,10)
+  const d = new Date(input)
+  if (isNaN(d)) return null
+  return d.toISOString().slice(0,10)
+}
 export default function PlantsPage() {
   const { user } = useAuth()
   const [plants, setPlants] = useState([])
@@ -38,7 +45,6 @@ export default function PlantsPage() {
   const [loading, setLoading] = useState(true)
   const [showImportConfirm, setShowImportConfirm] = useState(false)
   const [importPreview, setImportPreview] = useState([])
-  // Load plants from Supabase
   useEffect(() => {
     if (!user) return
     fetchPlants()
@@ -61,8 +67,47 @@ export default function PlantsPage() {
       .eq('user_id', user.id)
     setBeds(data || [])
   }
+  // Auto-sync a plant's planting + harvest dates to the calendar (no duplicates, no orphans)
+  const syncPlantToCalendar = async (plant) => {
+    if (!plant?.id) return
+    const desired = []
+    if (plant.planted_date) {
+      desired.push({ type: 'plant', date: toISODate(plant.planted_date), title: `Planted ${plant.name}` })
+    }
+    const log = Array.isArray(plant.harvest_log) ? plant.harvest_log : []
+    log.forEach(h => {
+      const d = toISODate(h.date)
+      if (d) desired.push({ type: 'harvest', date: d, title: `Harvested ${plant.name}` })
+    })
+    const { data: existing } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('plant_id', plant.id)
+      .eq('auto', true)
+    const existingRows = existing || []
+    const key = e => `${e.type}|${e.date}`
+    const desiredKeys = new Set(desired.map(key))
+    const existingKeys = new Set(existingRows.map(key))
+    const toInsert = desired
+      .filter(d => d.date && !existingKeys.has(key(d)))
+      .map(d => ({
+        user_id: user.id,
+        title: d.title,
+        date: d.date,
+        type: d.type,
+        auto: true,
+        plant_id: plant.id,
+      }))
+    if (toInsert.length) {
+      await supabase.from('calendar_events').insert(toInsert)
+    }
+    const toDelete = existingRows.filter(e => !desiredKeys.has(key(e))).map(e => e.id)
+    if (toDelete.length) {
+      await supabase.from('calendar_events').delete().in('id', toDelete).eq('user_id', user.id)
+    }
+  }
   const addPlant = async (plant) => {
-    // Get fresh session to ensure we have valid user
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) {
       alert('You must be logged in to save plants')
@@ -103,6 +148,7 @@ export default function PlantsPage() {
       alert('Error saving plant: ' + error.message)
     } else if (data) {
       setPlants(prev => [data, ...prev])
+      await syncPlantToCalendar(data)
     }
     setShowWizard(false)
   }
@@ -136,9 +182,9 @@ export default function PlantsPage() {
     if (!error && data) {
       setPlants(prev => prev.map(p => p.id === data.id ? data : p))
       setSelectedPlant(data)
+      await syncPlantToCalendar(data)
     }
   }
-  // Delete a plant — also strips it out of any bed it was placed in
   const deletePlant = async (plant) => {
     if (!confirm(`Delete "${plant.name}"? This cannot be undone.`)) return
     const { error } = await supabase
@@ -150,7 +196,12 @@ export default function PlantsPage() {
       alert('Error deleting plant: ' + error.message)
       return
     }
-    // If this plant was linked to a bed, remove it from that bed's plant layout
+    await supabase
+      .from('calendar_events')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('plant_id', plant.id)
+      .eq('auto', true)
     if (plant.bed_id) {
       const bed = beds.find(b => b.id === plant.bed_id)
       if (bed) {
@@ -166,7 +217,6 @@ export default function PlantsPage() {
     setPlants(prev => prev.filter(p => p.id !== plant.id))
     if (selectedPlant?.id === plant.id) setSelectedPlant(null)
   }
-  // Import plants from beds that aren't tracked yet
   const buildImportPreview = () => {
     const preview = []
     beds.forEach(bed => {
@@ -256,7 +306,6 @@ export default function PlantsPage() {
           <Plus size={16} /> Add Plant
         </button>
       </div>
-      {/* Import banner */}
       {bedsWithUnimported && (
         <div className="card bg-amber-50 border-amber-200">
           <div className="flex items-start gap-3">
@@ -274,7 +323,6 @@ export default function PlantsPage() {
           </button>
         </div>
       )}
-      {/* Search + Filter */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-garden-400" />
@@ -302,7 +350,6 @@ export default function PlantsPage() {
           </div>
         </div>
       )}
-      {/* Status pills */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {Object.entries(STATUS_COLORS).map(([status, colors]) => {
           const count = plants.filter(p => p.status === status).length
@@ -318,7 +365,6 @@ export default function PlantsPage() {
           )
         })}
       </div>
-      {/* Loading */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-2 border-garden-500 border-t-transparent rounded-full animate-spin" />
@@ -366,7 +412,6 @@ export default function PlantsPage() {
           ))}
         </div>
       )}
-      {/* Import confirm modal */}
       {showImportConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
