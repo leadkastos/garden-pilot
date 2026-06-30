@@ -6,7 +6,8 @@ import {
   DollarSign, TrendingUp, TrendingDown, Camera,
   CalendarDays, BarChart3, Plus
 } from 'lucide-react'
-
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/AuthContext'
 // Weather API using Open-Meteo (free, no API key needed)
 const fetchWeather = async (lat, lon) => {
   try {
@@ -16,7 +17,6 @@ const fetchWeather = async (lat, lon) => {
     return await res.json()
   } catch (e) { return null }
 }
-
 const getWeatherDesc = (code) => {
   if (code === 0) return 'Clear sky'
   if (code <= 3) return 'Partly cloudy'
@@ -27,7 +27,6 @@ const getWeatherDesc = (code) => {
   if (code <= 99) return 'Thunderstorms'
   return 'Mixed'
 }
-
 const getWeatherEmoji = (code) => {
   if (code === 0) return '☀️'
   if (code <= 3) return '⛅'
@@ -38,71 +37,69 @@ const getWeatherEmoji = (code) => {
   if (code <= 99) return '⛈️'
   return '🌤️'
 }
-
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-
 export default function DashboardPage() {
+  const { user } = useAuth()
   const [userData, setUserData] = useState(null)
   const [weather, setWeather] = useState(null)
   const [weatherLoading, setWeatherLoading] = useState(true)
   const [location, setLocation] = useState('Your area')
   const [tasks, setTasks] = useState([])
-
-  // Load all data from localStorage
+  // Load all data from Supabase
   useEffect(() => {
-    const plants = JSON.parse(localStorage.getItem('gardenpilot_plants') || '[]')
-    const beds = JSON.parse(localStorage.getItem('gardenpilot_beds') || '[]')
-    const expenses = JSON.parse(localStorage.getItem('gardenpilot_expenses') || '[]')
-    const revenue = JSON.parse(localStorage.getItem('gardenpilot_revenue') || '[]')
-    const calendarEvents = JSON.parse(localStorage.getItem('gardenpilot_calendar') || '[]')
-    const journalEntries = JSON.parse(localStorage.getItem('gardenpilot_journal') || '[]')
-
+    if (!user) return
+    loadData()
+  }, [user])
+  const loadData = async () => {
+    const [plantsRes, bedsRes, expensesRes, revenueRes, calendarRes, journalRes] = await Promise.all([
+      supabase.from('plants').select('*').eq('user_id', user.id),
+      supabase.from('beds').select('*').eq('user_id', user.id),
+      supabase.from('expenses').select('*').eq('user_id', user.id),
+      supabase.from('revenue').select('*').eq('user_id', user.id),
+      supabase.from('calendar_events').select('*').eq('user_id', user.id),
+      supabase.from('journal_entries').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+    ])
+    const plants = plantsRes.data || []
+    const beds = bedsRes.data || []
+    const expenses = expensesRes.data || []
+    const revenue = revenueRes.data || []
+    const calendarEvents = calendarRes.data || []
+    const journalEntries = journalRes.data || []
     // Today's date
     const today = new Date().toISOString().slice(0,10)
     const in3Days = new Date(Date.now() + 3 * 86400000).toISOString().slice(0,10)
-
     // Today's calendar events as tasks
     const todayEvents = calendarEvents.filter(e => e.date === today)
-    const upcomingEvents = calendarEvents
-      .filter(e => e.date > today && e.date <= in3Days)
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(0, 5)
-
     // All upcoming events for the next 30 days
     const next30 = new Date(Date.now() + 30 * 86400000).toISOString().slice(0,10)
     const allUpcoming = calendarEvents
       .filter(e => e.date >= today && e.date <= next30)
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 6)
-
     // Plant category counts
     const vegCount = plants.filter(p =>
-      ['Vegetable','Tomato','Pepper','Cucumber','Lettuce','Carrot','Bean','Corn','Squash','Onion','Potato','Eggplant','Broccoli','Spinach','Kale'].some(v =>
-        p.category?.includes(v) || p.name?.toLowerCase().includes(v.toLowerCase())
-      )).length || plants.filter(p => p.category === 'Vegetable').length
-
+      p.category === 'Vegetable' ||
+      ['Tomato','Pepper','Cucumber','Lettuce','Carrot','Bean','Corn','Squash','Onion','Potato','Eggplant','Broccoli','Spinach','Kale'].some(v =>
+        p.name?.toLowerCase().includes(v.toLowerCase())
+      )).length
     const flowerCount = plants.filter(p =>
       p.category === 'Flower' || ['Zinnia','Sunflower','Rose','Dahlia','Peony','Marigold'].some(f =>
         p.name?.toLowerCase().includes(f.toLowerCase())
       )).length
-
     const herbCount = plants.filter(p =>
       p.category === 'Herb' || ['Basil','Rosemary','Mint','Thyme','Sage','Cilantro','Dill'].some(h =>
         p.name?.toLowerCase().includes(h.toLowerCase())
       )).length
-
     // Financial totals for current year
     const year = new Date().getFullYear().toString()
     const yearExpenses = expenses.filter(e => e.date?.startsWith(year))
     const yearRevenue = revenue.filter(r => r.date?.startsWith(year))
     const totalSpent = yearExpenses.reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
     const totalRevenue2 = yearRevenue.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
-
     // Plants needing attention
-    const needsBed = plants.filter(p => p.bed?.includes('Needs a bed'))
+    const needsBed = plants.filter(p => !p.bed_id && p.status !== 'Unplanted')
     const unplanted = plants.filter(p => p.status === 'Unplanted')
     const harvestReady = plants.filter(p => p.status === 'Harvesting')
-
     // Build tasks from real data
     const generatedTasks = []
     todayEvents.forEach(e => {
@@ -117,14 +114,11 @@ export default function DashboardPage() {
     unplanted.slice(0,2).forEach(p => {
       generatedTasks.push({ id: `plant-${p.id}`, text: `Plant your ${p.name} seeds`, done: false, badge: 'Seeds', badgeClass: 'badge-green', urgent: false })
     })
-
     setTasks(generatedTasks.slice(0, 6))
-
     // Recent photos from plants
-    const photos = plants.filter(p => p.photo).map(p => ({
-      url: p.photo, label: p.name
+    const photos = plants.filter(p => p.photo_url).map(p => ({
+      url: p.photo_url, label: p.name
     }))
-
     setUserData({
       plants,
       beds,
@@ -140,8 +134,7 @@ export default function DashboardPage() {
       harvestReady: harvestReady.length,
       photos,
     })
-  }, [])
-
+  }
   // Get weather based on user's location
   useEffect(() => {
     setWeatherLoading(true)
@@ -177,21 +170,16 @@ export default function DashboardPage() {
       })
     }
   }, [])
-
   const toggleTask = (id) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
   }
-
   const doneTasks = tasks.filter(t => t.done).length
-
   // Weather data
   const currentTemp = weather?.current?.temperature_2m
   const currentCode = weather?.current?.weathercode
   const isFrost = weather?.daily?.temperature_2m_min?.[0] <= 32
   const isHeat = weather?.daily?.temperature_2m_max?.[0] >= 95
-
   const today = new Date()
-
   const formatUpcomingDate = (dateStr) => {
     try {
       const d = new Date(dateStr + 'T12:00:00')
@@ -201,14 +189,12 @@ export default function DashboardPage() {
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     } catch { return dateStr }
   }
-
   const upcomingDotColor = (type) => {
     if (type === 'plant') return 'bg-garden-500'
     if (type === 'harvest') return 'bg-amber-400'
     if (type === 'task') return 'bg-blue-400'
     return 'bg-purple-400'
   }
-
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -220,10 +206,8 @@ export default function DashboardPage() {
           Here's what to focus on today — {today.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' })}
         </p>
       </div>
-
       {/* Row 1: Tasks + Weather + Upcoming */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
         {/* Today's Tasks */}
         <div className="card fade-in stagger-2">
           <div className="flex items-center justify-between mb-4">
@@ -263,7 +247,6 @@ export default function DashboardPage() {
             View full calendar <ChevronRight size={12} />
           </Link>
         </div>
-
         {/* Weather */}
         <div className="card fade-in stagger-3 bg-gradient-to-br from-garden-50 to-blue-50 border-garden-200">
           <p className="text-xs text-garden-500 font-medium mb-1">Weather · {location}</p>
@@ -288,7 +271,6 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-5xl">{getWeatherEmoji(currentCode)}</span>
               </div>
-
               {/* Frost or Heat Alert */}
               {isFrost && (
                 <div className="bg-white border border-blue-200 rounded-xl p-3 mb-3">
@@ -316,7 +298,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
-
               {/* 3-day forecast */}
               <div className="grid grid-cols-3 gap-2">
                 {[1,2,3].map(i => {
@@ -340,7 +321,6 @@ export default function DashboardPage() {
             <p className="text-sm text-garden-400">Weather unavailable</p>
           )}
         </div>
-
         {/* Upcoming */}
         <div className="card fade-in stagger-4">
           <div className="flex items-center justify-between mb-4">
@@ -371,7 +351,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
       {/* Row 2: My Garden Categories */}
       <div className="card fade-in stagger-3">
         <div className="flex items-center justify-between mb-4">
@@ -400,10 +379,8 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
-
       {/* Row 3: Beds + Spend */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
         {/* Garden Beds */}
         <div className="card lg:col-span-2 fade-in stagger-4">
           <div className="flex items-center justify-between mb-4">
@@ -441,7 +418,6 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-
         {/* Garden Spend */}
         <div className="card fade-in stagger-5">
           <div className="flex items-center justify-between mb-1">
@@ -473,7 +449,6 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
-
       {/* Row 4: Quick Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 fade-in stagger-6">
         {[
@@ -494,7 +469,6 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
-
       {/* Recent Journal Entry */}
       {userData?.recentJournal && (
         <div className="card fade-in bg-garden-50 border-garden-200">
@@ -504,7 +478,7 @@ export default function DashboardPage() {
               View all <ChevronRight size={11} className="inline" />
             </Link>
           </div>
-          <p className="text-xs text-garden-500 mb-1">{userData.recentJournal.dateDisplay} · {userData.recentJournal.time}</p>
+          <p className="text-xs text-garden-500 mb-1">{userData.recentJournal.date_display} · {userData.recentJournal.time}</p>
           <p className="text-sm text-garden-700 line-clamp-2">{userData.recentJournal.text}</p>
         </div>
       )}
