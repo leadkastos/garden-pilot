@@ -1,35 +1,28 @@
 import { useState } from 'react'
-import { Camera, BarChart2, ChevronRight, Zap, Sprout, X, Check } from 'lucide-react'
-
-export default function PlantCard({ plant, statusColors, onClick, onUpdate }) {
+import { Camera, BarChart2, ChevronRight, Zap, Sprout, X, Check, Trash2 } from 'lucide-react'
+export default function PlantCard({ plant, statusColors, onClick, onUpdate, onDelete }) {
   const [showPlantModal, setShowPlantModal] = useState(false)
   const [plantDate, setPlantDate] = useState(new Date().toISOString().slice(0,10))
   const [seedsPlanted, setSeedsPlanted] = useState(plant.seedsInPack || '')
-
   const isUnplanted = plant.status === 'Unplanted'
   const colors = isUnplanted
     ? { bg: 'bg-slate-100', text: 'text-slate-600', dot: 'bg-slate-400' }
     : statusColors[plant.status] || statusColors['Growing']
-
   const germPct = plant.seedsPlanted > 0
     ? Math.round((plant.seedsSprouted / plant.seedsPlanted) * 100)
     : 0
-
   const healthColor = {
     Excellent: 'text-garden-600',
     Good: 'text-blue-600',
     Fair: 'text-amber-600',
     Poor: 'text-red-600',
   }[plant.health] || 'text-garden-600'
-
   const isUrgent = plant.nextAction?.toLowerCase().includes('today') ||
                    plant.nextAction?.toLowerCase().includes('!')
-
   const handleMarkPlanted = (e) => {
     e.stopPropagation()
     setShowPlantModal(true)
   }
-
   const confirmPlanted = (e) => {
     e.stopPropagation()
     if (onUpdate) {
@@ -44,14 +37,12 @@ export default function PlantCard({ plant, statusColors, onClick, onUpdate }) {
     }
     setShowPlantModal(false)
   }
-
   return (
     <>
       <div onClick={onClick}
         className={`card cursor-pointer hover:shadow-card-hover active:scale-[0.99] transition-all duration-150 ${
           isUnplanted ? 'border-slate-200 bg-slate-50/50' : ''
         }`}>
-
         {/* Top row */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-3">
@@ -74,14 +65,22 @@ export default function PlantCard({ plant, statusColors, onClick, onUpdate }) {
             </div>
           </div>
           <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-            <span className={`badge text-[11px] font-medium ${colors.bg} ${colors.text}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${colors.dot} mr-1`} />
-              {plant.status}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`badge text-[11px] font-medium ${colors.bg} ${colors.text}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${colors.dot} mr-1`} />
+                {plant.status}
+              </span>
+              {onDelete && (
+                <button onClick={e => { e.stopPropagation(); onDelete() }}
+                  className="w-7 h-7 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors flex-shrink-0"
+                  title="Delete plant">
+                  <Trash2 size={12} className="text-red-400" />
+                </button>
+              )}
+            </div>
             {!isUnplanted && <span className={`text-[11px] font-medium ${healthColor}`}>{plant.health}</span>}
           </div>
         </div>
-
         {/* Unplanted state — seeds in pack info */}
         {isUnplanted && (
           <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
@@ -99,7 +98,6 @@ export default function PlantCard({ plant, statusColors, onClick, onUpdate }) {
             </div>
           </div>
         )}
-
         {/* Germination bar — only when actually planted */}
         {!isUnplanted && plant.seedsPlanted > 0 && (
           <div className="mb-3">
@@ -113,7 +111,6 @@ export default function PlantCard({ plant, statusColors, onClick, onUpdate }) {
             </div>
           </div>
         )}
-
         {/* Next action — only when planted */}
         {!isUnplanted && plant.nextAction && (
           <div className={`flex items-center gap-2 px-3 py-2 rounded-xl mb-3 ${
@@ -128,7 +125,6 @@ export default function PlantCard({ plant, statusColors, onClick, onUpdate }) {
             )}
           </div>
         )}
-
         {/* Action buttons */}
         {isUnplanted ? (
           <button
@@ -157,7 +153,6 @@ export default function PlantCard({ plant, statusColors, onClick, onUpdate }) {
           </div>
         )}
       </div>
-
       {/* Mark as Planted Modal */}
       {showPlantModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4"
@@ -212,7 +207,6 @@ export default function PlantCard({ plant, statusColors, onClick, onUpdate }) {
     </>
   )
 }
-
 function getCategoryEmoji(category) {
   const map = {
     Tomato: '🍅', Pepper: '🌶️', Lettuce: '🥬', Cucumber: '🥒',
