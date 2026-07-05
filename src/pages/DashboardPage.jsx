@@ -200,7 +200,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="fade-in stagger-1">
         <h1 className="font-display text-3xl font-semibold text-garden-900">
-          Welcome back! 👋
+          Welcome back{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}! 👋
         </h1>
         <p className="text-garden-500 text-sm mt-1">
           Here's what to focus on today — {today.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' })}
