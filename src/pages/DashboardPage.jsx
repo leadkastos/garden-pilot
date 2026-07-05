@@ -111,8 +111,8 @@ export default function DashboardPage() {
     needsBed.slice(0,2).forEach(p => {
       generatedTasks.push({ id: `bed-${p.id}`, text: `Assign ${p.name} to a bed`, done: false, badge: 'Setup', badgeClass: 'badge-soil', urgent: false })
     })
-    unplanted.slice(0,2).forEach(p => {
-      generatedTasks.push({ id: `plant-${p.id}`, text: `Plant your ${p.name} seeds`, done: false, badge: 'Seeds', badgeClass: 'badge-green', urgent: false })
+  unplanted.slice(0,2).forEach(p => {
+      generatedTasks.push({ id: `logged-${p.id}`, text: `${p.name} seeds logged — plant when ready`, done: false, badge: 'Logged', badgeClass: 'badge-soil', urgent: false })
     })
     setTasks(generatedTasks.slice(0, 6))
     // Recent photos from plants
