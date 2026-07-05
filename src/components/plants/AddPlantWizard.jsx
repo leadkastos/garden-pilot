@@ -38,6 +38,7 @@ export default function AddPlantWizard({ onSave, onCancel }) {
     seedsInPack: '',
     notPlantedYet: false,
     seedsPlanted: '', plantedDate: '', startLocation: '', germDays: '',
+    daysToMaturity: '', productionWeeks: '',
     bed: '', sunExposure: '', notes: '',
     status: 'Seeded', health: 'Good', seedsSprouted: 0,
     nextAction: 'Watch for Sprouts', daysToHarvest: 60,
@@ -268,6 +269,18 @@ export default function AddPlantWizard({ onSave, onCancel }) {
                   <label className="block text-sm font-medium text-garden-700 mb-1.5">Expected days to sprout <span className="text-garden-400 font-normal">(optional)</span></label>
                   <input className="input-field" type="number" placeholder="e.g. 7"
                     value={data.germDays} onChange={e => update('germDays', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-garden-700 mb-1.5">Days to maturity <span className="text-garden-400 font-normal">(from seed packet)</span></label>
+                  <input className="input-field" type="number" placeholder="e.g. 60"
+                    value={data.daysToMaturity} onChange={e => update('daysToMaturity', e.target.value)} />
+                  <p className="text-xs text-garden-400 mt-1">How long until it's ready to harvest. Powers frost warnings.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-garden-700 mb-1.5">How long does it produce? <span className="text-garden-400 font-normal">(weeks, optional)</span></label>
+                  <input className="input-field" type="number" placeholder="e.g. 3"
+                    value={data.productionWeeks} onChange={e => update('productionWeeks', e.target.value)} />
+                  <p className="text-xs text-garden-400 mt-1">For plants you pick repeatedly (beans, zinnias). Leave blank for single-harvest plants.</p>
                 </div>
               </>
             )}
