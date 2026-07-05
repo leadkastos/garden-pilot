@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   ArrowLeft, Camera, Plus, Droplets, Zap, AlertTriangle,
   CheckCircle2, Leaf, BarChart2, TrendingUp, Star, X,
-  ChevronDown, ChevronUp, Edit3, Trash2, Loader2
+  ChevronDown, ChevronUp, Edit3, Trash2, Loader2, Check
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { compressImage } from '../../lib/imageCompress'
