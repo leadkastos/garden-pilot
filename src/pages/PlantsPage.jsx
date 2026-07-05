@@ -139,6 +139,7 @@ export default function PlantsPage() {
         harvest_log: [],
         milestones: [],
         notes: [],
+        photos: [],
         imported_from_ledger: plant.importedFromLedger || false,
       })
       .select()
@@ -172,6 +173,7 @@ export default function PlantsPage() {
         harvest_log: updated.harvestLog || updated.harvest_log || [],
         milestones: updated.milestones || [],
         notes: updated.notes || [],
+        photos: updated.photos || [],
         photo_url: updated.photoUrl || updated.photo_url,
         updated_at: new Date().toISOString(),
       })
@@ -258,6 +260,7 @@ export default function PlantsPage() {
         harvest_log: [],
         milestones: [],
         notes: [],
+        photos: [],
       })
     }
     setShowImportConfirm(false)
@@ -285,6 +288,7 @@ export default function PlantsPage() {
         growAgain: selectedPlant.grow_again,
         harvestLog: selectedPlant.harvest_log,
         seedSource: selectedPlant.seed_source,
+        photos: selectedPlant.photos,
       }}
       onBack={() => setSelectedPlant(null)}
       onUpdate={updatePlant}
