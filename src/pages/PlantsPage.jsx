@@ -129,6 +129,8 @@ export default function PlantsPage() {
         seeds_in_pack: parseInt(plant.seedsInPack) || 0,
         planted_date: plant.plantedDate || null,
         germ_days: parseInt(plant.germDays) || null,
+        days_to_maturity: parseInt(plant.daysToMaturity) || null,
+        production_weeks: parseInt(plant.productionWeeks) || null,
         start_location: plant.startLocation || null,
         sun_exposure: plant.sunExposure || null,
         seed_source: plant.seedSource || null,
