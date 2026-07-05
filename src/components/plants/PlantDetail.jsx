@@ -2,9 +2,9 @@ import { useState } from 'react'
 import {
   ArrowLeft, Camera, Plus, Droplets, Zap, AlertTriangle,
   CheckCircle2, Leaf, BarChart2, TrendingUp, Star, X,
-  ChevronDown, ChevronUp, Edit3, Trash2
+  ChevronDown, ChevronUp, Edit3, Trash2, Loader2
 } from 'lucide-react'
-
+import { supabase } from '../../lib/supabase'
 const QUICK_ACTIONS = [
   { id: 'watered',    label: 'I Watered',           emoji: '💧' },
   { id: 'sprouted',   label: 'Seeds Sprouted',       emoji: '🌱' },
@@ -17,13 +17,11 @@ const QUICK_ACTIONS = [
   { id: 'moved',      label: 'I Moved the Plant',     emoji: '📦' },
   { id: 'other',      label: 'Other',                 emoji: '📝' },
 ]
-
 const MILESTONES = [
   'Seed Planted', 'Sprouted', 'First True Leaves', 'Potted Up',
   'Hardened Off', 'Moved Outdoors', 'Transplanted', 'Flowering',
   'Fruiting', 'Harvest Started', 'Finished'
 ]
-
 const HEALTH_OPTIONS = ['Excellent', 'Good', 'Fair', 'Poor']
 const HEALTH_COLORS = {
   Excellent: 'bg-garden-100 text-garden-800 border-garden-300',
@@ -31,7 +29,6 @@ const HEALTH_COLORS = {
   Fair: 'bg-amber-100 text-amber-800 border-amber-300',
   Poor: 'bg-red-100 text-red-800 border-red-300',
 }
-
 function nowStamp() {
   const now = new Date()
   return now.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
@@ -40,7 +37,6 @@ function nowStamp() {
 function todayLabel() {
   return new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
 }
-
 export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusColors }) {
   const [showTodayModal, setShowTodayModal] = useState(false)
   const [showHarvestModal, setShowHarvestModal] = useState(false)
@@ -52,14 +48,14 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
   const [timeline, setTimeline] = useState(Array.isArray(plant.milestones) ? plant.milestones : [])
   const [germSprouted, setGermSprouted] = useState(plant.seedsSprouted || 0)
   const [growAgain, setGrowAgain] = useState(plant.growAgain ?? null)
-
+  const [photos, setPhotos] = useState(Array.isArray(plant.photos) ? plant.photos : [])
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [photoError, setPhotoError] = useState('')
   const colors = statusColors[plant.status] || statusColors['Growing']
   const germPct = plant.seedsPlanted > 0 ? Math.round((germSprouted / plant.seedsPlanted) * 100) : 0
-
   const persist = (changes) => {
     onUpdate({ ...plant, ...changes })
   }
-
   const handleQuickAction = (action) => {
     const note = { id: Date.now(), text: action.label, date: todayLabel(), type: 'action', emoji: action.emoji }
     const updated = [note, ...notes]
@@ -67,7 +63,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
     persist({ notes: updated })
     setShowTodayModal(false)
   }
-
   const addNote = () => {
     if (!newNote.trim()) return
     const updated = [{ id: Date.now(), text: newNote, date: todayLabel(), type: 'note' }, ...notes]
@@ -75,13 +70,11 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
     persist({ notes: updated })
     setNewNote('')
   }
-
   const deleteNote = (id) => {
     const updated = notes.filter(n => n.id !== id)
     setNotes(updated)
     persist({ notes: updated })
   }
-
   const logHarvest = (weight, unit) => {
     const entry = { id: Date.now(), date: todayLabel(), weight, unit }
     const updated = [...harvestLog, entry]
@@ -89,13 +82,11 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
     persist({ harvestLog: updated, status: 'Harvesting' })
     setShowHarvestModal(false)
   }
-
   const deleteHarvest = (id) => {
     const updated = harvestLog.filter(h => h.id !== id)
     setHarvestLog(updated)
     persist({ harvestLog: updated })
   }
-
   const toggleMilestone = (m) => {
     const alreadyDone = timeline.find(x => x.name === m)
     let updated
@@ -107,33 +98,67 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
     setTimeline(updated)
     persist({ milestones: updated })
   }
-
   const saveGerm = () => {
     const rate = plant.seedsPlanted > 0 ? Math.round((germSprouted / plant.seedsPlanted) * 100) : 0
     persist({ seedsSprouted: germSprouted, germRate: rate })
     setShowGermModal(false)
   }
-
   const saveGrowAgain = (val) => {
     setGrowAgain(val)
     persist({ growAgain: val })
   }
-
+  const handlePhotoSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoError('')
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('Please choose an image file.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError('Image must be under 5MB.')
+      return
+    }
+    setUploadingPhoto(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `plants/${plant.user_id}/${plant.id}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage
+        .from('plant-photos')
+        .upload(path, file, { cacheControl: '3600', upsert: false })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('plant-photos').getPublicUrl(path)
+      const entry = { id: Date.now(), url: publicUrl, date: todayLabel() }
+      const updated = [entry, ...photos]
+      setPhotos(updated)
+      // Also set photo_url to newest so cards/dashboard have a thumbnail
+      persist({ photos: updated, photoUrl: publicUrl })
+    } catch (err) {
+      setPhotoError(err.message || 'Upload failed. Try again.')
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
+  const deletePhoto = (id) => {
+    const updated = photos.filter(p => p.id !== id)
+    setPhotos(updated)
+    persist({ photos: updated, photoUrl: updated[0]?.url || null })
+  }
   const totalHarvest = harvestLog
     .filter(h => h.unit !== 'count')
     .reduce((s, h) => s + parseFloat(h.weight || 0), 0)
-
   return (
     <div className="min-h-screen bg-parchment pb-24">
-
       {/* Header */}
       <div className="bg-garden-800 px-4 pt-4 pb-5">
         <button onClick={onBack} className="flex items-center gap-2 text-garden-300 hover:text-white mb-4 text-sm">
           <ArrowLeft size={16} /> My Plants
         </button>
         <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-garden-700 flex items-center justify-center text-3xl flex-shrink-0">
-            🌱
+          <div className="w-14 h-14 rounded-2xl bg-garden-700 flex items-center justify-center text-3xl flex-shrink-0 overflow-hidden">
+            {photos[0]?.url
+              ? <img src={photos[0].url} alt={plant.name} className="w-full h-full object-cover" />
+              : '🌱'}
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="font-display text-2xl font-semibold text-white leading-tight">{plant.name}</h1>
@@ -155,7 +180,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
           )}
         </div>
       </div>
-
       {/* What Happened Today - BIG BUTTON */}
       <div className="px-4 -mt-3">
         <button onClick={() => setShowTodayModal(true)}
@@ -163,7 +187,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
           <Zap size={18} /> What Happened Today?
         </button>
       </div>
-
       {/* Tabs */}
       <div className="flex gap-1 px-4 mt-4 overflow-x-auto pb-1">
         {['overview', 'timeline', 'notes', 'harvest', 'photos'].map(tab => (
@@ -177,13 +200,10 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
           </button>
         ))}
       </div>
-
       <div className="px-4 mt-4 space-y-4">
-
         {/* OVERVIEW TAB */}
         {activeTab === 'overview' && (
           <div className="space-y-4 fade-in">
-
             {/* Insight */}
             <div className="card bg-garden-50 border-garden-200">
               <div className="flex items-start gap-2">
@@ -201,7 +221,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
                 </div>
               </div>
             </div>
-
             {/* Germination — only show when actually planted */}
             {plant.status !== 'Unplanted' && (
             <div className="card">
@@ -233,7 +252,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
               </div>
             </div>
             )}
-
             {/* Health */}
             <div className="card">
               <h3 className="font-medium text-garden-900 mb-3">How does it look?</h3>
@@ -250,7 +268,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
                 ))}
               </div>
             </div>
-
             {/* Quick stats */}
             <div className="grid grid-cols-2 gap-3">
               <div className="card text-center">
@@ -266,7 +283,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
                 <div className="text-xs text-garden-400 mt-1">To harvest</div>
               </div>
             </div>
-
             {/* Grow Again */}
             <div className="card">
               <h3 className="font-medium text-garden-900 mb-3">Would you grow this again?</h3>
@@ -291,7 +307,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
             </div>
           </div>
         )}
-
         {/* TIMELINE TAB */}
         {activeTab === 'timeline' && (
           <div className="space-y-3 fade-in">
@@ -330,7 +345,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
             </div>
           </div>
         )}
-
         {/* NOTES TAB */}
         {activeTab === 'notes' && (
           <div className="space-y-4 fade-in">
@@ -365,7 +379,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
             </div>
           </div>
         )}
-
         {/* HARVEST TAB */}
         {activeTab === 'harvest' && (
           <div className="space-y-4 fade-in">
@@ -405,20 +418,46 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
             )}
           </div>
         )}
-
         {/* PHOTOS TAB */}
         {activeTab === 'photos' && (
           <div className="space-y-4 fade-in">
-            <button className="w-full border-2 border-dashed border-garden-300 rounded-2xl py-10 flex flex-col items-center gap-2 hover:bg-garden-50 transition-colors">
-              <Camera size={28} className="text-garden-400" />
-              <p className="text-sm font-medium text-garden-600">Add a photo</p>
-              <p className="text-xs text-garden-400">Photo uploads coming soon</p>
-            </button>
-            <p className="text-center text-garden-400 text-sm">No photos yet</p>
+            <label className={`w-full border-2 border-dashed border-garden-300 rounded-2xl py-10 flex flex-col items-center gap-2 hover:bg-garden-50 transition-colors cursor-pointer ${uploadingPhoto ? 'opacity-60' : ''}`}>
+              {uploadingPhoto ? (
+                <>
+                  <Loader2 size={28} className="text-garden-400 animate-spin" />
+                  <p className="text-sm font-medium text-garden-600">Uploading...</p>
+                </>
+              ) : (
+                <>
+                  <Camera size={28} className="text-garden-400" />
+                  <p className="text-sm font-medium text-garden-600">Add a photo</p>
+                  <p className="text-xs text-garden-400">JPG or PNG, up to 5MB</p>
+                </>
+              )}
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} disabled={uploadingPhoto} />
+            </label>
+            {photoError && <p className="text-center text-red-600 text-sm">{photoError}</p>}
+            {photos.length === 0 ? (
+              <p className="text-center text-garden-400 text-sm">No photos yet</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {photos.map(photo => (
+                  <div key={photo.id} className="relative group">
+                    <img src={photo.url} alt="Plant" className="w-full aspect-square object-cover rounded-2xl border border-garden-100" />
+                    <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+                      {photo.date}
+                    </div>
+                    <button onClick={() => deletePhoto(photo.id)}
+                      className="absolute top-2 right-2 w-7 h-7 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-colors">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
-
       {/* WHAT HAPPENED TODAY MODAL — centered popup */}
       {showTodayModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -439,7 +478,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
           </div>
         </div>
       )}
-
       {/* GERMINATION UPDATE MODAL — centered popup */}
       {showGermModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -463,7 +501,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
           </div>
         </div>
       )}
-
       {/* HARVEST MODAL — centered popup */}
       {showHarvestModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -481,7 +518,6 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
     </div>
   )
 }
-
 function HarvestForm({ onSave, plant }) {
   const [weight, setWeight] = useState('')
   const [unit, setUnit] = useState('lbs')
