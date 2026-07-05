@@ -41,6 +41,7 @@ function todayLabel() {
 }
 export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusColors }) {
   const [showTodayModal, setShowTodayModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [showHarvestModal, setShowHarvestModal] = useState(false)
   const [showGermModal, setShowGermModal] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
@@ -173,6 +174,11 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
               <span className="text-garden-400 text-xs">{plant.bed}</span>
             </div>
           </div>
+          <button onClick={() => setShowEditModal(true)}
+            className="w-9 h-9 rounded-xl bg-garden-700 hover:bg-garden-600 flex items-center justify-center transition-colors flex-shrink-0"
+            title="Edit plant">
+            <Edit3 size={15} className="text-garden-200" />
+          </button>
           {onDelete && (
             <button onClick={onDelete}
               className="w-9 h-9 rounded-xl bg-garden-700 hover:bg-red-500/80 flex items-center justify-center transition-colors flex-shrink-0"
@@ -488,6 +494,22 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
           </div>
         )}
       </div>
+      {/* EDIT PLANT MODAL */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[88vh] flex flex-col">
+            <div className="px-5 pt-5 pb-3 border-b border-garden-100 flex items-center justify-between flex-shrink-0">
+              <h3 className="font-display text-xl font-semibold text-garden-900">Edit plant</h3>
+              <button onClick={() => setShowEditModal(false)}><X size={20} className="text-garden-400" /></button>
+            </div>
+            <EditPlantForm
+              plant={plant}
+              onSave={(changes) => { persist(changes); setShowEditModal(false) }}
+              onCancel={() => setShowEditModal(false)}
+            />
+          </div>
+        </div>
+      )}
       {/* WHAT HAPPENED TODAY MODAL — centered popup */}
       {showTodayModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -546,6 +568,82 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
         </div>
       )}
     </div>
+  )
+}
+const CATEGORY_OPTIONS = ['Tomato','Pepper','Lettuce','Cucumber','Herb','Carrot','Squash','Flower','Bean','Corn','Onion','Vegetable','Fruit','Other']
+const SEED_SOURCE_OPTIONS = ["Johnny's Seeds","Burpee","Baker Creek","Home Depot","Lowe's","Local Garden Center","Saved Seeds","Gifted Seeds","Other"]
+function EditPlantForm({ plant, onSave, onCancel }) {
+  const [name, setName] = useState(plant.name || '')
+  const [variety, setVariety] = useState(plant.variety || '')
+  const [category, setCategory] = useState(plant.category || 'Vegetable')
+  const [seedSource, setSeedSource] = useState(plant.seedSource || plant.seed_source || '')
+  const [plantedDate, setPlantedDate] = useState(plant.plantedDate || plant.planted_date || '')
+  const [seedsPlanted, setSeedsPlanted] = useState(plant.seedsPlanted ?? plant.seeds_planted ?? '')
+  const [daysToMaturity, setDaysToMaturity] = useState(plant.daysToMaturity ?? plant.days_to_maturity ?? '')
+  const [productionWeeks, setProductionWeeks] = useState(plant.productionWeeks ?? plant.production_weeks ?? '')
+
+  const save = () => {
+    if (!name.trim()) return
+    onSave({
+      name: name.trim(),
+      variety: variety.trim() || null,
+      category,
+      seedSource: seedSource || null,
+      plantedDate: plantedDate || null,
+      seedsPlanted: parseInt(seedsPlanted) || 0,
+      daysToMaturity: parseInt(daysToMaturity) || null,
+      productionWeeks: parseInt(productionWeeks) || null,
+    })
+  }
+
+  return (
+    <>
+      <div className="px-5 py-4 overflow-y-auto flex-1 space-y-3">
+        <div>
+          <label className="block text-sm font-medium text-garden-700 mb-1.5">Plant name</label>
+          <input className="input-field" value={name} onChange={e => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-garden-700 mb-1.5">Variety</label>
+          <input className="input-field" value={variety} onChange={e => setVariety(e.target.value)} placeholder="optional" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-garden-700 mb-1.5">Type</label>
+          <select className="input-field" value={category} onChange={e => setCategory(e.target.value)}>
+            {CATEGORY_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-garden-700 mb-1.5">Seed source</label>
+          <select className="input-field" value={seedSource} onChange={e => setSeedSource(e.target.value)}>
+            <option value="">—</option>
+            {SEED_SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-garden-700 mb-1.5">Planting date</label>
+          <input className="input-field" type="date" value={plantedDate ? String(plantedDate).slice(0,10) : ''} onChange={e => setPlantedDate(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-garden-700 mb-1.5">Seeds planted</label>
+          <input className="input-field" type="number" value={seedsPlanted} onChange={e => setSeedsPlanted(e.target.value)} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-garden-700 mb-1.5">Days to maturity</label>
+          <input className="input-field" type="number" value={daysToMaturity} onChange={e => setDaysToMaturity(e.target.value)} placeholder="e.g. 60" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-garden-700 mb-1.5">Production weeks</label>
+          <input className="input-field" type="number" value={productionWeeks} onChange={e => setProductionWeeks(e.target.value)} placeholder="optional" />
+        </div>
+      </div>
+      <div className="px-5 py-4 border-t border-garden-100 flex gap-3 flex-shrink-0">
+        <button onClick={onCancel} className="btn-secondary flex-1 justify-center py-2.5 text-sm">Cancel</button>
+        <button onClick={save} disabled={!name.trim()} className="btn-primary flex-1 justify-center py-2.5 text-sm disabled:opacity-40">
+          <Check size={14} /> Save changes
+        </button>
+      </div>
+    </>
   )
 }
 function HarvestForm({ onSave, plant }) {
