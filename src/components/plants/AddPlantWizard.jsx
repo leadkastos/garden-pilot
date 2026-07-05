@@ -33,6 +33,8 @@ export default function AddPlantWizard({ onSave, onCancel }) {
   const { user, profile } = useAuth()
   const [step, setStep] = useState(0)
   const [beds, setBeds] = useState([])
+  const [frostModal, setFrostModal] = useState(null)
+  const [frostDismissedKey, setFrostDismissedKey] = useState('')
   const [data, setData] = useState({
     name: '', variety: '', category: '',
     seedSource: '', seedPacketName: '', purchaseYear: '',
@@ -62,6 +64,25 @@ export default function AddPlantWizard({ onSave, onCancel }) {
   }, [user])
 
   const update = (field, val) => setData(d => ({ ...d, [field]: val }))
+
+  // Pop the frost modal when a warning-level risk first appears for the current inputs
+  useEffect(() => {
+    if (data.notPlantedYet) return
+    const risk = checkFrostRisk({
+      planting: data.plantedDate,
+      maturityDays: data.daysToMaturity,
+      productionWeeks: data.productionWeeks,
+      springFrost: profile?.last_spring_frost,
+      fallFrost: profile?.first_fall_frost,
+    })
+    if (risk && risk.level === 'warning') {
+      const key = `${data.plantedDate}|${data.daysToMaturity}|${data.productionWeeks}`
+      if (key !== frostDismissedKey) setFrostModal(risk)
+    } else {
+      setFrostModal(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.plantedDate, data.daysToMaturity, data.productionWeeks, data.notPlantedYet, profile?.last_spring_frost, profile?.first_fall_frost])
 
   const canNext = () => {
     if (step === 0) return data.name.trim() && data.category
@@ -482,6 +503,33 @@ export default function AddPlantWizard({ onSave, onCancel }) {
         )}
       </div>
 
+      {/* Frost warning popup */}
+      {frostModal && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="px-5 pt-6 pb-4 text-center">
+              <div className="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <span className="text-3xl">⚠️</span>
+              </div>
+              <h3 className="font-display text-lg font-semibold text-garden-900 mb-2">
+                {frostModal.kind === 'too-early' ? 'Planting a bit early' : 'Frost timing warning'}
+              </h3>
+              <p className="text-sm text-garden-600 leading-relaxed">{frostModal.message}</p>
+            </div>
+            <div className="px-5 pb-5 pt-1">
+              <button
+                onClick={() => {
+                  setFrostDismissedKey(`${data.plantedDate}|${data.daysToMaturity}|${data.productionWeeks}`)
+                  setFrostModal(null)
+                }}
+                className="w-full btn-primary justify-center py-3 text-sm">
+                Got it — continue anyway
+              </button>
+              <p className="text-center text-xs text-garden-400 mt-2">Dates are estimates and vary year to year.</p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Bottom nav */}
       {step < 5 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-garden-100 px-4 py-3 flex gap-3">
