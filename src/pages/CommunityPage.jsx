@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Plus, Search, Heart, MessageCircle, Flag, X, Camera, Send, AlertTriangle } from 'lucide-react'
+import { Plus, Search, Heart, MessageCircle, Flag, X, Camera, Send, AlertTriangle, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-
 const CATEGORIES = [
   { id: 'all',        label: 'All Posts',         emoji: '🌿' },
   { id: 'general',    label: 'General Gardening',  emoji: '🌱' },
@@ -14,9 +13,7 @@ const CATEGORIES = [
   { id: 'weather',    label: 'Weather & Season',   emoji: '🌧️' },
   { id: 'questions',  label: 'Ask the Community',  emoji: '❓' },
 ]
-
 const REPORT_REASONS = ['Inappropriate content', 'Spam or promotion', 'Harassment', 'Off topic', 'Other']
-
 export default function CommunityPage() {
   const { user, profile } = useAuth()
   const [posts, setPosts] = useState([])
@@ -27,11 +24,9 @@ export default function CommunityPage() {
   const [reportingPost, setReportingPost] = useState(null)
   const [expandedPost, setExpandedPost] = useState(null)
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
     fetchPosts()
   }, [])
-
   const fetchPosts = async () => {
     setLoading(true)
     const { data } = await supabase
@@ -41,7 +36,6 @@ export default function CommunityPage() {
     setPosts(data || [])
     setLoading(false)
   }
-
   const addPost = async (post) => {
     const displayName = profile?.display_name || profile?.full_name || user?.email?.split('@')[0] || 'Gardener'
     const { data, error } = await supabase
@@ -53,6 +47,7 @@ export default function CommunityPage() {
         title: post.title,
         text: post.text,
         location: post.location || null,
+        photo_url: post.photo_url || null,
         likes: 0,
       })
       .select(`*, community_replies(*)`)
@@ -60,7 +55,6 @@ export default function CommunityPage() {
     if (!error && data) setPosts(prev => [data, ...prev])
     setShowNewPost(false)
   }
-
   const toggleLike = async (postId) => {
     // Check if already liked
     const { data: existing } = await supabase
@@ -69,7 +63,6 @@ export default function CommunityPage() {
       .eq('post_id', postId)
       .eq('user_id', user.id)
       .single()
-
     if (existing) {
       // Unlike
       await supabase.from('post_likes').delete().eq('post_id', postId).eq('user_id', user.id)
@@ -82,7 +75,6 @@ export default function CommunityPage() {
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1, _liked: true } : p))
     }
   }
-
   const addReply = async (postId, replyText) => {
     const displayName = profile?.display_name || profile?.full_name || user?.email?.split('@')[0] || 'Gardener'
     const { data, error } = await supabase
@@ -104,14 +96,12 @@ export default function CommunityPage() {
       ))
     }
   }
-
   const filteredPosts = posts.filter(p => {
     const matchCat = activeCategory === 'all' || p.category === activeCategory
     const matchSearch = !search || p.title?.toLowerCase().includes(search.toLowerCase()) ||
                         p.text?.toLowerCase().includes(search.toLowerCase())
     return matchCat && matchSearch
   })
-
   const formatTime = (isoStr) => {
     try {
       const d = new Date(isoStr)
@@ -123,7 +113,6 @@ export default function CommunityPage() {
       return `${Math.floor(diff/86400)}d ago`
     } catch { return '' }
   }
-
   return (
     <div className="space-y-4 pb-20">
       <div className="flex items-start justify-between gap-3">
@@ -135,13 +124,11 @@ export default function CommunityPage() {
           <Plus size={14} /> New Post
         </button>
       </div>
-
       <div className="relative">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-garden-400" />
         <input type="text" placeholder="Search posts..."
           value={search} onChange={e => setSearch(e.target.value)} className="input-field pl-9" />
       </div>
-
       <div className="flex gap-2 overflow-x-auto pb-1">
         {CATEGORIES.map(cat => (
           <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
@@ -152,7 +139,6 @@ export default function CommunityPage() {
           </button>
         ))}
       </div>
-
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-2 border-garden-500 border-t-transparent rounded-full animate-spin" />
@@ -182,7 +168,6 @@ export default function CommunityPage() {
           ))}
         </div>
       )}
-
       {/* Guidelines modal */}
       {showGuidelines && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -206,29 +191,24 @@ export default function CommunityPage() {
           </div>
         </div>
       )}
-
       {showNewPost && (
-        <NewPostModal categories={CATEGORIES.filter(c => c.id !== 'all')} onSave={addPost} onClose={() => setShowNewPost(false)} />
+        <NewPostModal categories={CATEGORIES.filter(c => c.id !== 'all')} onSave={addPost} onClose={() => setShowNewPost(false)} userId={user?.id} />
       )}
-
       {reportingPost && (
         <ReportModal post={reportingPost} onClose={() => setReportingPost(null)} />
       )}
     </div>
   )
 }
-
 function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport, formatTime, categories, currentUserId }) {
   const [replyText, setReplyText] = useState('')
   const cat = categories.find(c => c.id === post.category)
   const replies = post.community_replies || []
-
   const handleReply = () => {
     if (!replyText.trim()) return
     onReply(replyText.trim())
     setReplyText('')
   }
-
   return (
     <div className="card">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -249,7 +229,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
           <Flag size={13} />
         </button>
       </div>
-
       <h3 className="font-display text-base font-semibold text-garden-900 mb-2">{post.title}</h3>
       <p className={`text-sm text-garden-700 leading-relaxed ${!isExpanded && post.text?.length > 200 ? 'line-clamp-3' : ''}`}>
         {post.text}
@@ -259,7 +238,10 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
           {isExpanded ? 'Show less' : 'Read more'}
         </button>
       )}
-
+      {post.photo_url && (
+        <img src={post.photo_url} alt={post.title}
+          className="mt-3 w-full rounded-xl border border-garden-100 object-cover max-h-96" />
+      )}
       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-garden-50">
         <button onClick={onLike}
           className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${post._liked ? 'text-red-500' : 'text-garden-400 hover:text-red-400'}`}>
@@ -271,7 +253,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
           {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
         </span>
       </div>
-
       {replies.length > 0 && (
         <div className="mt-3 space-y-2 pl-4 border-l-2 border-garden-100">
           {replies.map(reply => (
@@ -288,7 +269,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
           ))}
         </div>
       )}
-
       <div className="mt-3 flex gap-2">
         <input className="input-field flex-1 text-sm" placeholder="Write a reply..."
           value={replyText} onChange={e => setReplyText(e.target.value)}
@@ -301,12 +281,54 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
     </div>
   )
 }
-
-function NewPostModal({ categories, onSave, onClose }) {
+function NewPostModal({ categories, onSave, onClose, userId }) {
   const [title, setTitle] = useState('')
   const [text, setText] = useState('')
   const [category, setCategory] = useState('general')
   const [location, setLocation] = useState('')
+  const [photoUrl, setPhotoUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handlePhotoSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadError('')
+
+    // Basic guardrails
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please choose an image file.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('Image must be under 5MB.')
+      return
+    }
+
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `community/${userId}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage
+        .from('plant-photos')
+        .upload(path, file, { cacheControl: '3600', upsert: false })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('plant-photos').getPublicUrl(path)
+      setPhotoUrl(publicUrl)
+    } catch (err) {
+      setUploadError(err.message || 'Upload failed. Try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!title.trim() || !text.trim()) return
+    setSaving(true)
+    await onSave({ title, text, category, location, photo_url: photoUrl })
+    setSaving(false)
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:px-4">
@@ -345,28 +367,54 @@ function NewPostModal({ categories, onSave, onClose }) {
             <label className="block text-sm font-medium text-garden-700 mb-1.5">Location <span className="text-garden-400 font-normal">(optional)</span></label>
             <input className="input-field text-sm" placeholder="e.g. Nashville, TN" value={location} onChange={e => setLocation(e.target.value)} />
           </div>
-          <div className="border-2 border-dashed border-garden-200 rounded-xl p-4 text-center">
-            <Camera size={20} className="text-garden-300 mx-auto mb-1" />
-            <p className="text-xs text-garden-400">Photo uploads coming soon</p>
+
+          {/* Photo upload */}
+          <div>
+            <label className="block text-sm font-medium text-garden-700 mb-1.5">Photo <span className="text-garden-400 font-normal">(optional)</span></label>
+            {photoUrl ? (
+              <div className="relative">
+                <img src={photoUrl} alt="Upload preview" className="w-full rounded-xl border border-garden-100 object-cover max-h-64" />
+                <button
+                  onClick={() => setPhotoUrl('')}
+                  className="absolute top-2 right-2 w-8 h-8 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white">
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <label className={`border-2 border-dashed border-garden-200 rounded-xl p-5 text-center block cursor-pointer transition-colors ${uploading ? 'opacity-60' : 'hover:border-garden-400'}`}>
+                {uploading ? (
+                  <div className="flex items-center justify-center gap-2 text-garden-500">
+                    <Loader2 size={18} className="animate-spin" />
+                    <span className="text-xs">Uploading...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Camera size={20} className="text-garden-300 mx-auto mb-1" />
+                    <p className="text-xs text-garden-500 font-medium">Tap to add a photo</p>
+                    <p className="text-[11px] text-garden-400 mt-0.5">JPG or PNG, up to 5MB</p>
+                  </>
+                )}
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoSelect} disabled={uploading} />
+              </label>
+            )}
+            {uploadError && <p className="text-xs text-red-600 mt-1.5">{uploadError}</p>}
           </div>
         </div>
         <div className="px-5 py-4 border-t border-garden-100 flex gap-3 flex-shrink-0">
           <button onClick={onClose} className="btn-secondary flex-1 justify-center py-2.5 text-sm">Cancel</button>
-          <button onClick={() => title.trim() && text.trim() && onSave({ title, text, category, location })}
-            disabled={!title.trim() || !text.trim()}
+          <button onClick={handleSave}
+            disabled={!title.trim() || !text.trim() || uploading || saving}
             className="btn-primary flex-1 justify-center py-2.5 text-sm disabled:opacity-40">
-            Post to Community
+            {saving ? 'Posting...' : 'Post to Community'}
           </button>
         </div>
       </div>
     </div>
   )
 }
-
 function ReportModal({ post, onClose }) {
   const [reason, setReason] = useState('')
   const [submitted, setSubmitted] = useState(false)
-
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
