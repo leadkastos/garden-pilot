@@ -83,6 +83,7 @@ export default function Layout() {
   const notifIcon = (type) => {
     if (type === 'frost') return '❄️'
     if (type === 'heat')  return '🔥'
+    if (type === 'season') return '🍂'
     if (type === 'task')  return '✅'
     return '📋'
   }
