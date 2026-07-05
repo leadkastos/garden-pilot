@@ -49,9 +49,13 @@ export async function generateNotifications(userId, profile) {
 
   const desired = []
 
-  // 1. Frost-risk warnings per plant
+  // 1. Frost-timing warnings — only for recently-added plants (decision still actionable)
+  const now = Date.now()
+  const RECENT_MS = 14 * 86400000
   ;(plants || []).forEach((p) => {
     if (p.status === 'Finished' || p.status === 'Unplanted') return
+    // Skip plants added more than 14 days ago — the planting decision window has passed
+    if (p.created_at && (now - new Date(p.created_at).getTime()) > RECENT_MS) return
     const risk = checkFrostRisk({
       planting: p.planted_date,
       maturityDays: p.days_to_maturity,
@@ -60,10 +64,13 @@ export async function generateNotifications(userId, profile) {
       fallFrost: profile?.first_fall_frost,
     })
     if (risk && risk.level === 'warning') {
+      const title = risk.kind === 'too-early'
+        ? `${p.name}: planted early this season`
+        : `${p.name}: may not finish before fall frost`
       desired.push({
         key: `frost-${p.id}`,
-        type: 'frost',
-        title: `Frost risk: ${p.name}`,
+        type: 'season',
+        title,
         body: risk.message,
       })
     }
