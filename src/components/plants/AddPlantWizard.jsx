@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, Check, X, BedDouble } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../lib/AuthContext'
 
 const SEED_SOURCES = [
   "Johnny's Seeds", "Burpee", "Baker Creek", "Home Depot",
@@ -27,11 +29,14 @@ const CATEGORIES = [
 const STEPS = ['Plant Info', 'Seed Source', 'Planting', 'Location', 'Bed', 'Done']
 
 export default function AddPlantWizard({ onSave, onCancel }) {
+  const { user } = useAuth()
   const [step, setStep] = useState(0)
   const [beds, setBeds] = useState([])
   const [data, setData] = useState({
     name: '', variety: '', category: '',
     seedSource: '', seedPacketName: '', purchaseYear: '',
+    seedsInPack: '',
+    notPlantedYet: false,
     seedsPlanted: '', plantedDate: '', startLocation: '', germDays: '',
     bed: '', sunExposure: '', notes: '',
     status: 'Seeded', health: 'Good', seedsSprouted: 0,
@@ -41,19 +46,28 @@ export default function AddPlantWizard({ onSave, onCancel }) {
     photo: null
   })
 
-  // Load existing beds from localStorage
+  // Load existing beds from Supabase
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('gardenpilot_beds')
-      if (saved) setBeds(JSON.parse(saved))
-    } catch (e) { console.error('Error loading beds:', e) }
-  }, [])
+    if (!user) return
+    const loadBeds = async () => {
+      const { data: bedRows, error } = await supabase
+        .from('beds')
+        .select('*')
+        .eq('user_id', user.id)
+      if (!error) setBeds(bedRows || [])
+    }
+    loadBeds()
+  }, [user])
 
   const update = (field, val) => setData(d => ({ ...d, [field]: val }))
 
   const canNext = () => {
     if (step === 0) return data.name.trim() && data.category
-    if (step === 2) return data.seedsPlanted && data.plantedDate
+    if (step === 2) {
+      // If not planting yet, no planting details required
+      if (data.notPlantedYet) return true
+      return data.seedsPlanted && data.plantedDate
+    }
     return true
   }
 
@@ -62,37 +76,32 @@ export default function AddPlantWizard({ onSave, onCancel }) {
   const handleSave = () => {
     const plant = {
       ...data,
-      seedsPlanted: parseInt(data.seedsPlanted) || 0,
+      seedsPlanted: data.notPlantedYet ? 0 : (parseInt(data.seedsPlanted) || 0),
       germRate: 0,
-      // If assigned to existing bed, set the bed name
-      bed: data.assignedBedId
-        ? beds.find(b => b.id === data.assignedBedId)?.name || data.bed
-        : data.bedAssignment === 'later' ? '⚠️ Needs a bed' : data.bed || '—'
+      status: data.notPlantedYet ? 'Unplanted' : data.status,
+      plantedDate: data.notPlantedYet ? '' : data.plantedDate,
+      nextAction: data.notPlantedYet ? 'Ready to plant' : data.nextAction,
+      // Unplanted seeds never get a bed
+      bed: data.notPlantedYet
+        ? '—'
+        : data.assignedBedId
+          ? beds.find(b => b.id === data.assignedBedId)?.name || data.bed
+          : data.bedAssignment === 'later' ? '⚠️ Needs a bed' : data.bed || '—'
     }
-
-    // If assigned to an existing bed, add this plant to that bed's palette
-    if (data.assignedBedId) {
-      try {
-        const savedBeds = localStorage.getItem('gardenpilot_beds')
-        if (savedBeds) {
-          const parsedBeds = JSON.parse(savedBeds)
-          const updatedBeds = parsedBeds.map(b => {
-            if (b.id !== data.assignedBedId) return b
-            const newBedPlant = {
-              id: `plant-${Date.now()}`,
-              name: data.name,
-              emoji: getEmoji(),
-              color: '#4a9e3f',
-              placed: []
-            }
-            return { ...b, plants: [...b.plants, newBedPlant] }
-          })
-          localStorage.setItem('gardenpilot_beds', JSON.stringify(updatedBeds))
-        }
-      } catch (e) { console.error('Error updating bed:', e) }
-    }
-
     onSave(plant)
+  }
+
+  // When "not planted yet" is checked, jump Planting -> Review (skip Location + Bed)
+  const handleNext = () => {
+    if (step === 2 && data.notPlantedYet) { setStep(5); return }
+    if (step === 4) { setStep(5); return }
+    setStep(s => s + 1)
+  }
+
+  const handleBack = () => {
+    // Coming back from Review when unplanted returns to Planting
+    if (step === 5 && data.notPlantedYet) { setStep(2); return }
+    setStep(s => s - 1)
   }
 
   return (
@@ -187,6 +196,11 @@ export default function AddPlantWizard({ onSave, onCancel }) {
                     value={data.seedPacketName} onChange={e => update('seedPacketName', e.target.value)} />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-garden-700 mb-1.5">Seeds in pack <span className="text-garden-400 font-normal">(optional)</span></label>
+                  <input className="input-field" type="number" min="0" placeholder="e.g. 50"
+                    value={data.seedsInPack} onChange={e => update('seedsInPack', e.target.value)} />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-garden-700 mb-1.5">Purchase year <span className="text-garden-400 font-normal">(optional)</span></label>
                   <input className="input-field" placeholder="e.g. 2026"
                     value={data.purchaseYear} onChange={e => update('purchaseYear', e.target.value)} />
@@ -203,36 +217,60 @@ export default function AddPlantWizard({ onSave, onCancel }) {
               <h2 className="font-display text-2xl font-semibold text-garden-900 mb-1">Planting details</h2>
               <p className="text-garden-500 text-sm">Tell us how many you planted and when</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-garden-700 mb-1.5">How many seeds did you plant? *</label>
-              <input className="input-field text-lg font-medium" type="number" min="1" placeholder="e.g. 24"
-                value={data.seedsPlanted} onChange={e => update('seedsPlanted', e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-garden-700 mb-1.5">When did you plant them? *</label>
-              <input className="input-field" type="date"
-                value={data.plantedDate} onChange={e => update('plantedDate', e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-garden-700 mb-2">Where did you start them?</label>
-              <div className="grid grid-cols-2 gap-2">
-                {START_LOCATIONS.map(l => (
-                  <button key={l} onClick={() => update('startLocation', l)}
-                    className={`p-3 rounded-xl border-2 text-sm font-medium text-left transition-all ${
-                      data.startLocation === l
-                        ? 'border-garden-500 bg-garden-50 text-garden-800'
-                        : 'border-garden-100 bg-white text-garden-600 hover:border-garden-300'
-                    }`}>
-                    {l}
-                  </button>
-                ))}
+
+            {/* Not-planted-yet toggle */}
+            <button
+              onClick={() => update('notPlantedYet', !data.notPlantedYet)}
+              className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all ${
+                data.notPlantedYet
+                  ? 'border-amber-400 bg-amber-50'
+                  : 'border-garden-100 bg-white hover:border-amber-300'
+              }`}>
+              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
+                data.notPlantedYet ? 'bg-amber-400 border-amber-400' : 'border-garden-300 bg-white'
+              }`}>
+                {data.notPlantedYet && <Check size={14} className="text-white" />}
               </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-garden-700 mb-1.5">Expected days to sprout <span className="text-garden-400 font-normal">(optional)</span></label>
-              <input className="input-field" type="number" placeholder="e.g. 7"
-                value={data.germDays} onChange={e => update('germDays', e.target.value)} />
-            </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-garden-900">I haven't planted these yet</p>
+                <p className="text-xs text-garden-400">Just tracking the seeds for now — plant them later</p>
+              </div>
+            </button>
+
+            {!data.notPlantedYet && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-garden-700 mb-1.5">How many seeds did you plant? *</label>
+                  <input className="input-field text-lg font-medium" type="number" min="1" placeholder="e.g. 24"
+                    value={data.seedsPlanted} onChange={e => update('seedsPlanted', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-garden-700 mb-1.5">When did you plant them? *</label>
+                  <input className="input-field" type="date"
+                    value={data.plantedDate} onChange={e => update('plantedDate', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-garden-700 mb-2">Where did you start them?</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {START_LOCATIONS.map(l => (
+                      <button key={l} onClick={() => update('startLocation', l)}
+                        className={`p-3 rounded-xl border-2 text-sm font-medium text-left transition-all ${
+                          data.startLocation === l
+                            ? 'border-garden-500 bg-garden-50 text-garden-800'
+                            : 'border-garden-100 bg-white text-garden-600 hover:border-garden-300'
+                        }`}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-garden-700 mb-1.5">Expected days to sprout <span className="text-garden-400 font-normal">(optional)</span></label>
+                  <input className="input-field" type="number" placeholder="e.g. 7"
+                    value={data.germDays} onChange={e => update('germDays', e.target.value)} />
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -298,7 +336,7 @@ export default function AddPlantWizard({ onSave, onCancel }) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-garden-900">{bed.name}</p>
                         <p className="text-xs text-garden-400">
-                          {bed.length}ft × {bed.width}ft · {bed.plants.reduce((s, p) => s + p.placed.length, 0)} plants
+                          {bed.length}ft × {bed.width}ft · {(bed.plants || []).reduce((s, p) => s + (p.placed?.length || 0), 0)} plants
                         </p>
                       </div>
                       {data.assignedBedId === bed.id && (
@@ -376,18 +414,26 @@ export default function AddPlantWizard({ onSave, onCancel }) {
               {data.variety && <p className="text-garden-500 text-sm">{data.variety}</p>}
             </div>
             <div className="card space-y-3">
-              {[
-                ['Category', data.category],
-                ['Seed source', data.seedSource || '—'],
-                ['Seeds planted', data.seedsPlanted || '—'],
-                ['Planted', data.plantedDate || '—'],
-                ['Starting location', data.startLocation || '—'],
-                ['Assigned bed', data.assignedBedId
-                  ? beds.find(b => b.id === data.assignedBedId)?.name
-                  : data.bedAssignment === 'later' ? '⚠️ Needs a bed'
-                  : data.bedAssignment === 'none' ? 'No bed needed'
-                  : '—'],
-              ].map(([label, val]) => (
+              {(data.notPlantedYet
+                ? [
+                    ['Category', data.category],
+                    ['Seed source', data.seedSource || '—'],
+                    ['Seeds in pack', data.seedsInPack || '—'],
+                    ['Status', '🟡 Not planted yet'],
+                  ]
+                : [
+                    ['Category', data.category],
+                    ['Seed source', data.seedSource || '—'],
+                    ['Seeds planted', data.seedsPlanted || '—'],
+                    ['Planted', data.plantedDate || '—'],
+                    ['Starting location', data.startLocation || '—'],
+                    ['Assigned bed', data.assignedBedId
+                      ? beds.find(b => b.id === data.assignedBedId)?.name
+                      : data.bedAssignment === 'later' ? '⚠️ Needs a bed'
+                      : data.bedAssignment === 'none' ? 'No bed needed'
+                      : '—'],
+                  ]
+              ).map(([label, val]) => (
                 <div key={label} className="flex justify-between text-sm">
                   <span className="text-garden-500">{label}</span>
                   <span className="text-garden-800 font-medium">{val}</span>
@@ -406,15 +452,15 @@ export default function AddPlantWizard({ onSave, onCancel }) {
       {step < 5 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-garden-100 px-4 py-3 flex gap-3">
           {step > 0 && (
-            <button onClick={() => setStep(s => s - 1)} className="btn-secondary flex-shrink-0">
+            <button onClick={handleBack} className="btn-secondary flex-shrink-0">
               <ArrowLeft size={16} />
             </button>
           )}
           <button
-            onClick={() => step === 4 ? setStep(5) : setStep(s => s + 1)}
+            onClick={handleNext}
             disabled={step < 4 && !canNext()}
             className="btn-primary flex-1 justify-center py-3 text-base disabled:opacity-40 disabled:cursor-not-allowed">
-            {step === 4 ? 'Review & Save' : 'Continue'}
+            {(step === 4 || (step === 2 && data.notPlantedYet)) ? 'Review & Save' : 'Continue'}
             <ArrowRight size={16} />
           </button>
         </div>
