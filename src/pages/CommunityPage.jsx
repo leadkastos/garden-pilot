@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Search, Heart, MessageCircle, Flag, X, Camera, Send, AlertTriangle, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { compressImage } from '../lib/imageCompress'
 const CATEGORIES = [
   { id: 'all',        label: 'All Posts',         emoji: '🌿' },
   { id: 'general',    label: 'General Gardening',  emoji: '🌱' },
@@ -75,7 +76,7 @@ export default function CommunityPage() {
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1, _liked: true } : p))
     }
   }
-  const addReply = async (postId, replyText) => {
+  const addReply = async (postId, replyText, replyPhotoUrl) => {
     const displayName = profile?.display_name || profile?.full_name || user?.email?.split('@')[0] || 'Gardener'
     const { data, error } = await supabase
       .from('community_replies')
@@ -84,6 +85,7 @@ export default function CommunityPage() {
         user_id: user.id,
         display_name: displayName,
         text: replyText,
+        photo_url: replyPhotoUrl || null,
         likes: 0,
       })
       .select()
@@ -159,7 +161,7 @@ export default function CommunityPage() {
               isExpanded={expandedPost === post.id}
               onToggleExpand={() => setExpandedPost(expandedPost === post.id ? null : post.id)}
               onLike={() => toggleLike(post.id)}
-              onReply={(text) => addReply(post.id, text)}
+              onReply={(text, photoUrl) => addReply(post.id, text, photoUrl)}
               onReport={() => setReportingPost(post)}
               formatTime={formatTime}
               categories={CATEGORIES}
@@ -202,12 +204,40 @@ export default function CommunityPage() {
 }
 function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport, formatTime, categories, currentUserId }) {
   const [replyText, setReplyText] = useState('')
+  const [replyPhoto, setReplyPhoto] = useState('')
+  const [replyUploading, setReplyUploading] = useState(false)
+  const [replyError, setReplyError] = useState('')
   const cat = categories.find(c => c.id === post.category)
   const replies = post.community_replies || []
+
+  const handleReplyPhoto = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setReplyError('')
+    if (!file.type.startsWith('image/')) { setReplyError('Please choose an image file.'); return }
+    if (file.size > 10 * 1024 * 1024) { setReplyError('Image must be under 10MB.'); return }
+    setReplyUploading(true)
+    try {
+      const compressed = await compressImage(file)
+      const path = `replies/${currentUserId}/${Date.now()}.jpg`
+      const { error } = await supabase.storage
+        .from('plant-photos')
+        .upload(path, compressed, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('plant-photos').getPublicUrl(path)
+      setReplyPhoto(publicUrl)
+    } catch (err) {
+      setReplyError(err.message || 'Upload failed.')
+    } finally {
+      setReplyUploading(false)
+    }
+  }
+
   const handleReply = () => {
-    if (!replyText.trim()) return
-    onReply(replyText.trim())
+    if (!replyText.trim() && !replyPhoto) return
+    onReply(replyText.trim(), replyPhoto)
     setReplyText('')
+    setReplyPhoto('')
   }
   return (
     <div className="card">
@@ -264,16 +294,33 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
                 <span className="text-xs font-medium text-garden-800">{reply.display_name}</span>
                 <span className="text-[11px] text-garden-400">{formatTime(reply.created_at)}</span>
               </div>
-              <p className="text-xs text-garden-700 leading-relaxed">{reply.text}</p>
+              {reply.text && <p className="text-xs text-garden-700 leading-relaxed">{reply.text}</p>}
+              {reply.photo_url && (
+                <img src={reply.photo_url} alt="Reply" className="mt-2 rounded-lg border border-garden-100 max-h-56 object-cover" />
+              )}
             </div>
           ))}
         </div>
       )}
-      <div className="mt-3 flex gap-2">
+      {replyPhoto && (
+        <div className="mt-3 relative inline-block">
+          <img src={replyPhoto} alt="Reply preview" className="rounded-lg border border-garden-100 max-h-40 object-cover" />
+          <button onClick={() => setReplyPhoto('')}
+            className="absolute top-1 right-1 w-6 h-6 bg-black/60 hover:bg-black/80 rounded-full flex items-center justify-center text-white">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+      {replyError && <p className="text-xs text-red-600 mt-1.5">{replyError}</p>}
+      <div className="mt-3 flex gap-2 items-center">
         <input className="input-field flex-1 text-sm" placeholder="Write a reply..."
           value={replyText} onChange={e => setReplyText(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleReply()} />
-        <button onClick={handleReply} disabled={!replyText.trim()}
+        <label className={`btn-secondary px-3 cursor-pointer flex-shrink-0 ${replyUploading ? 'opacity-60' : ''}`} title="Add photo">
+          {replyUploading ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+          <input type="file" accept="image/*" className="hidden" onChange={handleReplyPhoto} disabled={replyUploading} />
+        </label>
+        <button onClick={handleReply} disabled={(!replyText.trim() && !replyPhoto) || replyUploading}
           className="btn-primary px-3 disabled:opacity-40">
           <Send size={14} />
         </button>
@@ -301,18 +348,18 @@ function NewPostModal({ categories, onSave, onClose, userId }) {
       setUploadError('Please choose an image file.')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('Image must be under 5MB.')
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('Image must be under 10MB.')
       return
     }
 
     setUploading(true)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `community/${userId}/${Date.now()}.${ext}`
+      const compressed = await compressImage(file)
+      const path = `community/${userId}/${Date.now()}.jpg`
       const { error } = await supabase.storage
         .from('plant-photos')
-        .upload(path, file, { cacheControl: '3600', upsert: false })
+        .upload(path, compressed, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' })
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('plant-photos').getPublicUrl(path)
       setPhotoUrl(publicUrl)
