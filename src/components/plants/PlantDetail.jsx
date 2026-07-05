@@ -5,6 +5,7 @@ import {
   ChevronDown, ChevronUp, Edit3, Trash2, Loader2
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { compressImage } from '../../lib/imageCompress'
 const QUICK_ACTIONS = [
   { id: 'watered',    label: 'I Watered',           emoji: '💧' },
   { id: 'sprouted',   label: 'Seeds Sprouted',       emoji: '🌱' },
@@ -115,17 +116,17 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
       setPhotoError('Please choose an image file.')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setPhotoError('Image must be under 5MB.')
+    if (file.size > 10 * 1024 * 1024) {
+      setPhotoError('Image must be under 10MB.')
       return
     }
     setUploadingPhoto(true)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `plants/${plant.user_id}/${plant.id}/${Date.now()}.${ext}`
+      const compressed = await compressImage(file)
+      const path = `plants/${plant.user_id}/${plant.id}/${Date.now()}.jpg`
       const { error } = await supabase.storage
         .from('plant-photos')
-        .upload(path, file, { cacheControl: '3600', upsert: false })
+        .upload(path, compressed, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' })
       if (error) throw error
       const { data: { publicUrl } } = supabase.storage.from('plant-photos').getPublicUrl(path)
       const entry = { id: Date.now(), url: publicUrl, date: todayLabel() }
