@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/AuthContext'
+import { checkFrostRisk } from '../../lib/frostCheck'
 
 const SEED_SOURCES = [
   "Johnny's Seeds", "Burpee", "Baker Creek", "Home Depot",
@@ -29,7 +30,7 @@ const CATEGORIES = [
 const STEPS = ['Plant Info', 'Seed Source', 'Planting', 'Location', 'Bed', 'Done']
 
 export default function AddPlantWizard({ onSave, onCancel }) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [step, setStep] = useState(0)
   const [beds, setBeds] = useState([])
   const [data, setData] = useState({
@@ -282,6 +283,26 @@ export default function AddPlantWizard({ onSave, onCancel }) {
                     value={data.productionWeeks} onChange={e => update('productionWeeks', e.target.value)} />
                   <p className="text-xs text-garden-400 mt-1">For plants you pick repeatedly (beans, zinnias). Leave blank for single-harvest plants.</p>
                 </div>
+
+                {(() => {
+                  const risk = checkFrostRisk({
+                    planting: data.plantedDate,
+                    maturityDays: data.daysToMaturity,
+                    productionWeeks: data.productionWeeks,
+                    springFrost: profile?.last_spring_frost,
+                    fallFrost: profile?.first_fall_frost,
+                  })
+                  if (!risk) return null
+                  const isWarn = risk.level === 'warning'
+                  return (
+                    <div className={`rounded-xl p-3 border ${isWarn ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg flex-shrink-0">{isWarn ? '⚠️' : '⏳'}</span>
+                        <p className={`text-xs leading-relaxed ${isWarn ? 'text-amber-800' : 'text-blue-800'}`}>{risk.message}</p>
+                      </div>
+                    </div>
+                  )
+                })()}
               </>
             )}
           </div>
