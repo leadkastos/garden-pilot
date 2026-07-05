@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ArrowLeft, Camera, Plus, Droplets, Zap, AlertTriangle,
   CheckCircle2, Leaf, BarChart2, TrendingUp, Star, X,
@@ -55,6 +55,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [photoError, setPhotoError] = useState('')
   const colors = statusColors[plant.status] || statusColors['Growing']
+  useEffect(() => { window.scrollTo(0, 0) }, [])
   const germPct = plant.seedsPlanted > 0 ? Math.round((germSprouted / plant.seedsPlanted) * 100) : 0
   const persist = (changes) => {
     onUpdate({ ...plant, ...changes })
