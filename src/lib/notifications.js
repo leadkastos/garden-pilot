@@ -1,0 +1,135 @@
+import { supabase } from './supabase'
+import { checkFrostRisk } from './frostCheck'
+
+// Generates "what's relevant now" notifications from live data and syncs them
+// to the notifications table. Deduped by a stable `key` so the same frost
+// warning doesn't pile up on every login.
+//
+// Returns the fresh list of notification rows for the bell.
+
+const todayISO = () => new Date().toISOString().slice(0, 10)
+
+async function fetchWeatherAlert() {
+  // Uses browser geolocation if available; falls back silently.
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto&forecast_days=1`
+          )
+          const data = await res.json()
+          const low = data?.daily?.temperature_2m_min?.[0]
+          const high = data?.daily?.temperature_2m_max?.[0]
+          if (low <= 32) {
+            resolve({ kind: 'frost', title: 'Frost warning tonight', body: `Low around ${Math.round(low)}°F — protect sensitive plants.` })
+          } else if (high >= 95) {
+            resolve({ kind: 'heat', title: 'Heat warning today', body: `High around ${Math.round(high)}°F — water early morning.` })
+          } else {
+            resolve(null)
+          }
+        } catch { resolve(null) }
+      },
+      () => resolve(null),
+      { timeout: 5000 }
+    )
+  })
+}
+
+export async function generateNotifications(userId, profile) {
+  if (!userId) return []
+
+  // Pull the data we base notifications on
+  const [{ data: plants }, { data: events }] = await Promise.all([
+    supabase.from('plants').select('*').eq('user_id', userId),
+    supabase.from('calendar_events').select('*').eq('user_id', userId).eq('date', todayISO()),
+  ])
+
+  const desired = []
+
+  // 1. Frost-risk warnings per plant
+  ;(plants || []).forEach((p) => {
+    if (p.status === 'Finished' || p.status === 'Unplanted') return
+    const risk = checkFrostRisk({
+      planting: p.planted_date,
+      maturityDays: p.days_to_maturity,
+      productionWeeks: p.production_weeks,
+      springFrost: profile?.last_spring_frost,
+      fallFrost: profile?.first_fall_frost,
+    })
+    if (risk && risk.level === 'warning') {
+      desired.push({
+        key: `frost-${p.id}`,
+        type: 'frost',
+        title: `Frost risk: ${p.name}`,
+        body: risk.message,
+      })
+    }
+  })
+
+  // 2. Today's tasks / harvests
+  ;(events || []).forEach((e) => {
+    desired.push({
+      key: `event-${e.id}`,
+      type: 'task',
+      title: e.title,
+      body: `On your calendar for today.`,
+    })
+  })
+
+  // 3. Harvest-ready plants
+  ;(plants || []).forEach((p) => {
+    if (p.status === 'Harvesting') {
+      desired.push({
+        key: `harvest-${p.id}`,
+        type: 'task',
+        title: `${p.name} is ready to harvest`,
+        body: `Marked as harvesting — check on it.`,
+      })
+    }
+  })
+
+  // 4. Weather alert (one, location-based)
+  const weather = await fetchWeatherAlert()
+  if (weather) {
+    desired.push({
+      key: `weather-${todayISO()}-${weather.kind}`,
+      type: weather.kind === 'heat' ? 'heat' : 'frost',
+      title: weather.title,
+      body: weather.body,
+    })
+  }
+
+  // Dedupe against existing rows by `link` (we store the key in `link`)
+  const { data: existing } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+
+  const existingKeys = new Set((existing || []).map((r) => r.link))
+  const toInsert = desired
+    .filter((d) => !existingKeys.has(d.key))
+    .map((d) => ({
+      user_id: userId,
+      type: d.type,
+      title: d.title,
+      body: d.body,
+      link: d.key, // reuse link column to store the dedupe key
+      read: false,
+    }))
+
+  if (toInsert.length) {
+    await supabase.from('notifications').insert(toInsert)
+  }
+
+  // Return the full fresh list, newest first
+  const { data: fresh } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  return fresh || []
+}
