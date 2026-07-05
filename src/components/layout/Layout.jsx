@@ -2,10 +2,11 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
+import { generateNotifications } from '../../lib/notifications'
 import {
   LayoutDashboard, Calendar, Leaf, Grid3x3, Receipt,
   BarChart3, Bell, ChevronDown, LogOut,
-  User, X, BookOpen, Users, Menu
+  User, X, BookOpen, Users, Menu, Trash2
 } from 'lucide-react'
 
 const navItems = [
@@ -19,12 +20,6 @@ const navItems = [
   { to: '/community', label: 'Community',    icon: Users },
 ]
 
-const mockNotifications = [
-  { id: 1, type: 'frost', title: 'Frost warning tonight', body: 'Low of 31°F — bring sensitive plants inside', time: '2h ago', unread: true },
-  { id: 2, type: 'task',  title: 'Time to water Tomato Bed', body: 'It\'s been 3 days since last watering', time: '5h ago', unread: true },
-  { id: 3, type: 'system', title: 'Weekly report ready', body: 'Your week 12 garden report is ready to view', time: '1d ago', unread: false },
-]
-
 export default function Layout() {
   const { profile, user } = useAuth()
   const navigate = useNavigate()
@@ -32,7 +27,18 @@ export default function Layout() {
   const [showNotifs, setShowNotifs] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showMobileMenu, setShowMobileMenu] = useState(false)
-  const [notifs, setNotifs] = useState(mockNotifications)
+  const [notifs, setNotifs] = useState([])
+
+  // Generate + load notifications once when user/profile are ready
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    generateNotifications(user.id, profile).then((rows) => {
+      if (!cancelled) setNotifs(rows)
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, profile?.last_spring_frost, profile?.first_fall_frost])
 
   useEffect(() => {
     setShowMobileMenu(false)
@@ -49,12 +55,25 @@ export default function Layout() {
     return () => { document.body.style.overflow = '' }
   }, [showMobileMenu])
 
-  const unreadCount = notifs.filter(n => n.unread).length
+  const unreadCount = notifs.filter(n => !n.read).length
   const initials = profile?.full_name
     ? profile.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2)
     : user?.email?.[0]?.toUpperCase() ?? 'GP'
 
-  const markAllRead = () => setNotifs(n => n.map(x => ({ ...x, unread: false })))
+  const markAllRead = async () => {
+    setNotifs(n => n.map(x => ({ ...x, read: true })))
+    await supabase.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false)
+  }
+
+  const deleteOne = async (id) => {
+    setNotifs(n => n.filter(x => x.id !== id))
+    await supabase.from('notifications').delete().eq('id', id).eq('user_id', user.id)
+  }
+
+  const clearAll = async () => {
+    setNotifs([])
+    await supabase.from('notifications').delete().eq('user_id', user.id)
+  }
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -63,8 +82,20 @@ export default function Layout() {
 
   const notifIcon = (type) => {
     if (type === 'frost') return '❄️'
+    if (type === 'heat')  return '🔥'
     if (type === 'task')  return '✅'
     return '📋'
+  }
+
+  const timeAgo = (iso) => {
+    try {
+      const d = new Date(iso)
+      const diff = Math.floor((Date.now() - d) / 1000)
+      if (diff < 60) return 'just now'
+      if (diff < 3600) return `${Math.floor(diff/60)}m ago`
+      if (diff < 86400) return `${Math.floor(diff/3600)}h ago`
+      return `${Math.floor(diff/86400)}d ago`
+    } catch { return '' }
   }
 
   return (
@@ -125,25 +156,41 @@ export default function Layout() {
                     </div>
                   </div>
                   <div className="max-h-80 overflow-y-auto divide-y divide-garden-50">
-                    {notifs.map(n => (
-                      <div key={n.id} className={`px-4 py-3 hover:bg-garden-50 transition-colors ${n.unread ? 'bg-garden-50/50' : ''}`}>
+                    {notifs.length === 0 ? (
+                      <div className="px-4 py-10 text-center">
+                        <p className="text-sm text-garden-400">You're all caught up 🌱</p>
+                      </div>
+                    ) : notifs.map(n => (
+                      <div key={n.id} className={`px-4 py-3 hover:bg-garden-50 transition-colors group ${!n.read ? 'bg-garden-50/50' : ''}`}>
                         <div className="flex gap-3">
                           <span className="text-base mt-0.5">{notifIcon(n.type)}</span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-sm font-medium text-garden-900 truncate">{n.title}</p>
-                              {n.unread && <div className="w-2 h-2 bg-garden-500 rounded-full flex-shrink-0" />}
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {!n.read && <div className="w-2 h-2 bg-garden-500 rounded-full" />}
+                                <button onClick={() => deleteOne(n.id)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-garden-300 hover:text-red-500"
+                                  title="Delete">
+                                  <X size={13} />
+                                </button>
+                              </div>
                             </div>
                             <p className="text-xs text-garden-500 mt-0.5 line-clamp-2">{n.body}</p>
-                            <p className="text-[11px] text-garden-400 mt-1">{n.time}</p>
+                            <p className="text-[11px] text-garden-400 mt-1">{timeAgo(n.created_at)}</p>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="px-4 py-3 border-t border-garden-100 text-center">
-                    <button className="text-xs text-garden-600 hover:text-garden-800 font-medium">View all notifications</button>
-                  </div>
+                  {notifs.length > 0 && (
+                    <div className="px-4 py-3 border-t border-garden-100 text-center">
+                      <button onClick={clearAll}
+                        className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1.5 mx-auto">
+                        <Trash2 size={12} /> Clear all notifications
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -154,8 +201,10 @@ export default function Layout() {
                 onClick={() => { setShowProfile(!showProfile); setShowNotifs(false) }}
                 className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl transition-colors hover:bg-white/10"
                 style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-                <div className="w-7 h-7 rounded-lg bg-green-700 flex items-center justify-center text-white text-xs font-medium">
-                  {initials}
+                <div className="w-7 h-7 rounded-lg bg-green-700 flex items-center justify-center text-white text-xs font-medium overflow-hidden">
+                  {profile?.avatar_url
+                    ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    : initials}
                 </div>
                 <span className="text-sm text-green-200 max-w-[100px] truncate">
                   {profile?.full_name || user?.email}
@@ -213,8 +262,10 @@ export default function Layout() {
             <div className="px-5 py-4 border-b border-white/10">
               <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-8 w-auto mb-3" />
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-green-700 flex items-center justify-center text-white font-medium">
-                  {initials}
+                <div className="w-10 h-10 rounded-xl bg-green-700 flex items-center justify-center text-white font-medium overflow-hidden">
+                  {profile?.avatar_url
+                    ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    : initials}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-white truncate">{profile?.full_name || 'Gardener'}</p>
