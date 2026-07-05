@@ -39,7 +39,7 @@ const getWeatherEmoji = (code) => {
 }
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [userData, setUserData] = useState(null)
   const [weather, setWeather] = useState(null)
   const [weatherLoading, setWeatherLoading] = useState(true)
@@ -111,7 +111,7 @@ export default function DashboardPage() {
     needsBed.slice(0,2).forEach(p => {
       generatedTasks.push({ id: `bed-${p.id}`, text: `Assign ${p.name} to a bed`, done: false, badge: 'Setup', badgeClass: 'badge-soil', urgent: false })
     })
-  unplanted.slice(0,2).forEach(p => {
+    unplanted.slice(0,2).forEach(p => {
       generatedTasks.push({ id: `logged-${p.id}`, text: `${p.name} seeds logged — plant when ready`, done: false, badge: 'Logged', badgeClass: 'badge-soil', urgent: false })
     })
     setTasks(generatedTasks.slice(0, 6))
@@ -195,12 +195,13 @@ export default function DashboardPage() {
     if (type === 'task') return 'bg-blue-400'
     return 'bg-purple-400'
   }
+  const firstName = profile?.full_name ? profile.full_name.split(' ')[0] : ''
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="fade-in stagger-1">
         <h1 className="font-display text-3xl font-semibold text-garden-900">
-          Welcome back{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}! 👋
+          Welcome back{firstName ? `, ${firstName}` : ''}! 👋
         </h1>
         <p className="text-garden-500 text-sm mt-1">
           Here's what to focus on today — {today.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' })}
