@@ -10,6 +10,7 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState(profile?.full_name || '')
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
   const [location, setLocation] = useState(profile?.location || '')
+  const [zipCode, setZipCode] = useState(profile?.zip_code || '')
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -22,6 +23,7 @@ export default function ProfilePage() {
     setFullName(profile?.full_name || '')
     setDisplayName(profile?.display_name || '')
     setLocation(profile?.location || '')
+    setZipCode(profile?.zip_code || '')
     setAvatarUrl(profile?.avatar_url || '')
     setError('')
     setEditing(true)
@@ -63,6 +65,7 @@ export default function ProfilePage() {
         full_name: fullName.trim(),
         display_name: displayName.trim() || fullName.trim().split(' ')[0],
         location: location.trim() || null,
+        zip_code: zipCode.trim() || null,
         avatar_url: avatarUrl || null,
         updated_at: new Date().toISOString(),
       })
@@ -171,6 +174,17 @@ export default function ProfilePage() {
             </label>
             <input className="input-field" placeholder="e.g. Franklin, TN"
               value={location} onChange={e => setLocation(e.target.value)} />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-garden-700 mb-1.5">
+              Zip code
+            </label>
+            <input className="input-field" placeholder="e.g. 37027" inputMode="numeric" maxLength={5}
+              value={zipCode} onChange={e => setZipCode(e.target.value.replace(/\D/g, '').slice(0,5))} />
+            <p className="text-xs text-garden-500 mt-1.5 bg-garden-50 border border-garden-100 rounded-lg px-3 py-2">
+              🌱 We use your zip code to look up your local frost dates. This lets Garden Pilot warn you if a plant won't have enough time to mature and produce before the first frost — so you plant at the right time.
+            </p>
           </div>
 
           {error && (
