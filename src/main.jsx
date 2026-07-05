@@ -2,10 +2,10 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './styles/globals.css'
-
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Layout from './components/layout/Layout'
 import LoginPage from './pages/LoginPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
 import ProfilePage from './pages/ProfilePage'
 import FlowerTrackerPage from './pages/FlowerTrackerPage'
@@ -16,11 +16,9 @@ import LedgerPage from './pages/LedgerPage'
 import CalendarPage from './pages/CalendarPage'
 import ReportsPage from './pages/ReportsPage'
 import CommunityPage from './pages/CommunityPage'
-
 // Protected route — redirects to login if not authenticated
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
-
   if (loading) {
     return (
       <div className="min-h-screen bg-parchment flex items-center justify-center">
@@ -31,19 +29,17 @@ function ProtectedRoute({ children }) {
       </div>
     )
   }
-
   if (!user) return <Navigate to="/login" replace />
   return children
 }
-
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public route */}
+          {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
-
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           {/* Protected routes */}
           <Route path="/" element={
             <ProtectedRoute>
@@ -61,7 +57,6 @@ function App() {
             <Route path="profile" element={<ProfilePage />} />
             <Route path="profile/flowers" element={<FlowerTrackerPage />} />
           </Route>
-
           {/* Catch all — redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -69,5 +64,4 @@ function App() {
     </BrowserRouter>
   )
 }
-
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
