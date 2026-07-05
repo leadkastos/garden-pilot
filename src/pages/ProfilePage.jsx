@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
-import { User, MapPin, Mail, Leaf, Flower2, Sprout, Pencil, Check, X, Loader2 } from 'lucide-react'
+import { User, MapPin, Mail, Leaf, Flower2, Sprout, Pencil, Check, X, Loader2, Camera } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { compressImage } from '../lib/imageCompress'
 export default function ProfilePage() {
   const { profile, user, refreshProfile } = useAuth()
   const [editing, setEditing] = useState(false)
   const [fullName, setFullName] = useState(profile?.full_name || '')
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
   const [location, setLocation] = useState(profile?.location || '')
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
+  const [avatarUploading, setAvatarUploading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedMsg, setSavedMsg] = useState(false)
@@ -19,8 +22,32 @@ export default function ProfilePage() {
     setFullName(profile?.full_name || '')
     setDisplayName(profile?.display_name || '')
     setLocation(profile?.location || '')
+    setAvatarUrl(profile?.avatar_url || '')
     setError('')
     setEditing(true)
+  }
+
+  const handleAvatarSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setError('')
+    if (!file.type.startsWith('image/')) { setError('Please choose an image file.'); return }
+    if (file.size > 10 * 1024 * 1024) { setError('Image must be under 10MB.'); return }
+    setAvatarUploading(true)
+    try {
+      const compressed = await compressImage(file, { maxDim: 400, quality: 0.85 })
+      const path = `avatars/${user.id}/${Date.now()}.jpg`
+      const { error: upErr } = await supabase.storage
+        .from('plant-photos')
+        .upload(path, compressed, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('plant-photos').getPublicUrl(path)
+      setAvatarUrl(publicUrl)
+    } catch (err) {
+      setError(err.message || 'Upload failed.')
+    } finally {
+      setAvatarUploading(false)
+    }
   }
 
   const handleSave = async () => {
@@ -36,6 +63,7 @@ export default function ProfilePage() {
         full_name: fullName.trim(),
         display_name: displayName.trim() || fullName.trim().split(' ')[0],
         location: location.trim() || null,
+        avatar_url: avatarUrl || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', user.id)
@@ -44,7 +72,6 @@ export default function ProfilePage() {
       setError(updateError.message)
       return
     }
-    // Refresh the profile in context if the hook exposes it
     if (typeof refreshProfile === 'function') {
       await refreshProfile()
     }
@@ -72,8 +99,10 @@ export default function ProfilePage() {
         <div className="card">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-5">
-              <div className="w-16 h-16 rounded-2xl bg-garden-600 flex items-center justify-center text-white text-xl font-display font-semibold flex-shrink-0">
-                {initials}
+              <div className="w-16 h-16 rounded-2xl bg-garden-600 flex items-center justify-center text-white text-xl font-display font-semibold flex-shrink-0 overflow-hidden">
+                {profile?.avatar_url
+                  ? <img src={profile.avatar_url} alt={profile.full_name} className="w-full h-full object-cover" />
+                  : initials}
               </div>
               <div>
                 <h2 className="font-display text-xl font-semibold text-garden-900">{profile?.full_name || 'Gardener'}</h2>
@@ -98,6 +127,27 @@ export default function ProfilePage() {
             <button onClick={() => setEditing(false)} className="text-garden-400 hover:text-garden-600">
               <X size={18} />
             </button>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-2xl bg-garden-600 flex items-center justify-center text-white text-2xl font-display font-semibold flex-shrink-0 overflow-hidden">
+              {avatarUrl
+                ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                : initials}
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className={`btn-secondary text-sm cursor-pointer ${avatarUploading ? 'opacity-60' : ''}`}>
+                {avatarUploading
+                  ? <><Loader2 size={14} className="animate-spin" /> Uploading...</>
+                  : <><Camera size={14} /> {avatarUrl ? 'Change photo' : 'Upload photo'}</>}
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarSelect} disabled={avatarUploading} />
+              </label>
+              {avatarUrl && (
+                <button onClick={() => setAvatarUrl('')} className="text-xs text-red-500 hover:text-red-600 text-left">
+                  Remove photo
+                </button>
+              )}
+            </div>
           </div>
 
           <div>
