@@ -34,7 +34,7 @@ function toISODate(input) {
   return d.toISOString().slice(0,10)
 }
 export default function PlantsPage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [plants, setPlants] = useState([])
   const [beds, setBeds] = useState([])
   const [search, setSearch] = useState('')
@@ -291,6 +291,10 @@ export default function PlantsPage() {
         harvestLog: selectedPlant.harvest_log,
         seedSource: selectedPlant.seed_source,
         photos: selectedPlant.photos,
+        daysToMaturity: selectedPlant.days_to_maturity,
+        productionWeeks: selectedPlant.production_weeks,
+        _springFrost: profile?.last_spring_frost,
+        _fallFrost: profile?.first_fall_frost,
       }}
       onBack={() => setSelectedPlant(null)}
       onUpdate={updatePlant}
