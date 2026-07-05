@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 import { User, MapPin, Mail, Leaf, Flower2, Sprout, Pencil, Check, X, Loader2, Camera } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { compressImage } from '../lib/imageCompress'
+import { estimateFrostDates, formatFrost } from '../lib/frostDates'
 export default function ProfilePage() {
   const { profile, user, refreshProfile } = useAuth()
   const [editing, setEditing] = useState(false)
@@ -11,6 +12,8 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
   const [location, setLocation] = useState(profile?.location || '')
   const [zipCode, setZipCode] = useState(profile?.zip_code || '')
+  const [springFrost, setSpringFrost] = useState(profile?.last_spring_frost || '')
+  const [fallFrost, setFallFrost] = useState(profile?.first_fall_frost || '')
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '')
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -24,6 +27,8 @@ export default function ProfilePage() {
     setDisplayName(profile?.display_name || '')
     setLocation(profile?.location || '')
     setZipCode(profile?.zip_code || '')
+    setSpringFrost(profile?.last_spring_frost || '')
+    setFallFrost(profile?.first_fall_frost || '')
     setAvatarUrl(profile?.avatar_url || '')
     setError('')
     setEditing(true)
@@ -66,6 +71,8 @@ export default function ProfilePage() {
         display_name: displayName.trim() || fullName.trim().split(' ')[0],
         location: location.trim() || null,
         zip_code: zipCode.trim() || null,
+        last_spring_frost: springFrost.trim() || null,
+        first_fall_frost: fallFrost.trim() || null,
         avatar_url: avatarUrl || null,
         updated_at: new Date().toISOString(),
       })
@@ -116,6 +123,11 @@ export default function ProfilePage() {
                 )}
                 <p className="text-garden-500 text-sm flex items-center gap-1 mt-1"><Mail size={13} />{user?.email}</p>
                 {profile?.location && <p className="text-garden-500 text-sm flex items-center gap-1 mt-0.5"><MapPin size={13} />{profile.location}</p>}
+                {(profile?.last_spring_frost || profile?.first_fall_frost) && (
+                  <p className="text-garden-500 text-xs mt-1.5">
+                    ❄️ Frost dates: last spring <span className="font-medium text-garden-700">{formatFrost(profile.last_spring_frost)}</span> · first fall <span className="font-medium text-garden-700">{formatFrost(profile.first_fall_frost)}</span>
+                  </p>
+                )}
               </div>
             </div>
             <button onClick={startEdit} className="btn-secondary text-sm flex-shrink-0">
@@ -181,9 +193,35 @@ export default function ProfilePage() {
               Zip code
             </label>
             <input className="input-field" placeholder="e.g. 37027" inputMode="numeric" maxLength={5}
-              value={zipCode} onChange={e => setZipCode(e.target.value.replace(/\D/g, '').slice(0,5))} />
+              value={zipCode} onChange={e => {
+                const z = e.target.value.replace(/\D/g, '').slice(0,5)
+                setZipCode(z)
+                if (z.length >= 3) {
+                  const est = estimateFrostDates(z)
+                  if (est) {
+                    setSpringFrost(est.spring)
+                    setFallFrost(est.fall)
+                  }
+                }
+              }} />
             <p className="text-xs text-garden-500 mt-1.5 bg-garden-50 border border-garden-100 rounded-lg px-3 py-2">
               🌱 We use your zip code to look up your local frost dates. This lets Garden Pilot warn you if a plant won't have enough time to mature and produce before the first frost — so you plant at the right time.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-garden-700 mb-1.5">Last spring frost</label>
+              <input className="input-field" type="text" placeholder="MM-DD e.g. 04-15"
+                value={springFrost} onChange={e => setSpringFrost(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-garden-700 mb-1.5">First fall frost</label>
+              <input className="input-field" type="text" placeholder="MM-DD e.g. 10-30"
+                value={fallFrost} onChange={e => setFallFrost(e.target.value)} />
+            </div>
+            <p className="col-span-2 text-xs text-garden-400 -mt-1">
+              Estimated from your zip — edit if you know your local dates. Format: MM-DD (month-day).
             </p>
           </div>
 
