@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { compressImage } from '../../lib/imageCompress'
+import { checkFrostRisk } from '../../lib/frostCheck'
 const QUICK_ACTIONS = [
   { id: 'watered',    label: 'I Watered',           emoji: '💧' },
   { id: 'sprouted',   label: 'Seeds Sprouted',       emoji: '🌱' },
@@ -188,8 +189,36 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
           <Zap size={18} /> What Happened Today?
         </button>
       </div>
+      {/* Frost warning banner */}
+      {plant.status !== 'Finished' && (() => {
+        const risk = checkFrostRisk({
+          planting: plant.plantedDate,
+          maturityDays: plant.daysToMaturity,
+          productionWeeks: plant.productionWeeks,
+          springFrost: plant._springFrost,
+          fallFrost: plant._fallFrost,
+        })
+        if (!risk) return null
+        const isWarn = risk.level === 'warning'
+        return (
+          <div className="px-4 mt-4">
+            <div className={`rounded-2xl p-4 border ${isWarn ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">{isWarn ? '⚠️' : '⏳'}</span>
+                <div>
+                  <p className={`text-sm font-medium mb-0.5 ${isWarn ? 'text-amber-900' : 'text-blue-900'}`}>
+                    {risk.kind === 'too-late' ? 'Frost timing warning' : risk.kind === 'too-early' ? 'Planted early' : 'Close to frost'}
+                  </p>
+                  <p className={`text-xs leading-relaxed ${isWarn ? 'text-amber-800' : 'text-blue-800'}`}>{risk.message}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
       {/* Tabs */}
       <div className="flex gap-1 px-4 mt-4 overflow-x-auto pb-1">
+        {/* Tab buttons rendered below */}
         {['overview', 'timeline', 'notes', 'harvest', 'photos'].map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 rounded-xl text-sm font-medium flex-shrink-0 transition-all capitalize ${
