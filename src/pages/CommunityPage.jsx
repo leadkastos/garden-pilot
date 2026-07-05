@@ -15,6 +15,7 @@ const CATEGORIES = [
   { id: 'questions',  label: 'Ask the Community',  emoji: '❓' },
 ]
 const REPORT_REASONS = ['Inappropriate content', 'Spam or promotion', 'Harassment', 'Off topic', 'Other']
+const OWNER_UID = '4d7952c4-c796-435a-b319-4018eb16c410'
 export default function CommunityPage() {
   const { user, profile } = useAuth()
   const [posts, setPosts] = useState([])
@@ -56,6 +57,35 @@ export default function CommunityPage() {
       .single()
     if (!error && data) setPosts(prev => [data, ...prev])
     setShowNewPost(false)
+  }
+  const editPost = async (postId, changes) => {
+    const { data, error } = await supabase
+      .from('community_posts')
+      .update({
+        title: changes.title,
+        text: changes.text,
+        category: changes.category,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', postId)
+      .select(`*, community_replies(*)`)
+      .single()
+    if (!error && data) setPosts(prev => prev.map(p => p.id === postId ? data : p))
+  }
+  const deletePost = async (postId) => {
+    if (!confirm('Delete this post? This cannot be undone.')) return
+    const { error } = await supabase.from('community_posts').delete().eq('id', postId)
+    if (!error) setPosts(prev => prev.filter(p => p.id !== postId))
+  }
+  const deleteReply = async (postId, replyId) => {
+    const { error } = await supabase.from('community_replies').delete().eq('id', replyId)
+    if (!error) {
+      setPosts(prev => prev.map(p =>
+        p.id === postId
+          ? { ...p, community_replies: (p.community_replies || []).filter(r => r.id !== replyId) }
+          : p
+      ))
+    }
   }
   const toggleLike = async (postId) => {
     // Check if already liked
@@ -165,6 +195,11 @@ export default function CommunityPage() {
               onLike={() => toggleLike(post.id)}
               onReply={(text, photoUrl) => addReply(post.id, text, photoUrl)}
               onReport={() => setReportingPost(post)}
+              onEdit={(changes) => editPost(post.id, changes)}
+              onDelete={() => deletePost(post.id)}
+              onDeleteReply={(replyId) => deleteReply(post.id, replyId)}
+              canManage={post.user_id === user?.id || user?.id === OWNER_UID}
+              isOwnerAdmin={user?.id === OWNER_UID}
               formatTime={formatTime}
               categories={CATEGORIES}
               currentUserId={user?.id}
@@ -204,11 +239,16 @@ export default function CommunityPage() {
     </div>
   )
 }
-function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport, formatTime, categories, currentUserId }) {
+function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport, onEdit, onDelete, onDeleteReply, canManage, isOwnerAdmin, formatTime, categories, currentUserId }) {
   const [replyText, setReplyText] = useState('')
   const [replyPhoto, setReplyPhoto] = useState('')
   const [replyUploading, setReplyUploading] = useState(false)
   const [replyError, setReplyError] = useState('')
+  const [showMenu, setShowMenu] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(post.title || '')
+  const [editText, setEditText] = useState(post.text || '')
+  const [editCategory, setEditCategory] = useState(post.category || 'general')
   const cat = categories.find(c => c.id === post.category)
   const replies = post.community_replies || []
 
@@ -241,6 +281,11 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
     setReplyText('')
     setReplyPhoto('')
   }
+  const saveEdit = () => {
+    if (!editTitle.trim() || !editText.trim()) return
+    onEdit({ title: editTitle.trim(), text: editText.trim(), category: editCategory })
+    setEditing(false)
+  }
   return (
     <div className="card">
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -259,18 +304,63 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
             </div>
           </div>
         </div>
-        <button onClick={onReport} className="text-garden-300 hover:text-red-400 transition-colors flex-shrink-0">
-          <Flag size={13} />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={onReport} className="text-garden-300 hover:text-red-400 transition-colors p-1">
+            <Flag size={13} />
+          </button>
+          {canManage && (
+            <div className="relative">
+              <button onClick={() => setShowMenu(!showMenu)} className="text-garden-400 hover:text-garden-700 transition-colors p-1 text-lg leading-none">
+                ⋯
+              </button>
+              {showMenu && (
+                <div className="absolute right-0 top-7 w-36 bg-white rounded-xl shadow-lg border border-garden-100 overflow-hidden z-20">
+                  <button onClick={() => { setEditing(true); setShowMenu(false) }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-garden-700 hover:bg-garden-50">
+                    Edit post
+                  </button>
+                  <button onClick={() => { setShowMenu(false); onDelete() }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50">
+                    Delete post
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-      <h3 className="font-display text-base font-semibold text-garden-900 mb-2">{post.title}</h3>
-      <p className={`text-sm text-garden-700 leading-relaxed ${!isExpanded && post.text?.length > 200 ? 'line-clamp-3' : ''}`}>
-        {post.text}
-      </p>
-      {post.text?.length > 200 && (
-        <button onClick={onToggleExpand} className="text-xs text-garden-500 hover:text-garden-700 mt-1 font-medium">
-          {isExpanded ? 'Show less' : 'Read more'}
-        </button>
+      {editing ? (
+        <div className="space-y-3 mb-2">
+          <div className="flex flex-wrap gap-2">
+            {categories.filter(c => c.id !== 'all').map(c => (
+              <button key={c.id} onClick={() => setEditCategory(c.id)}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-all ${
+                  editCategory === c.id ? 'bg-garden-600 text-white border-garden-600' : 'bg-white text-garden-600 border-garden-200'
+                }`}>
+                {c.emoji} {c.label}
+              </button>
+            ))}
+          </div>
+          <input className="input-field text-sm" value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Title" />
+          <textarea className="input-field text-sm resize-none" rows={4} value={editText} onChange={e => setEditText(e.target.value)} placeholder="Post" />
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="btn-secondary flex-1 justify-center py-2 text-sm">Cancel</button>
+            <button onClick={saveEdit} disabled={!editTitle.trim() || !editText.trim()}
+              className="btn-primary flex-1 justify-center py-2 text-sm disabled:opacity-40">Save</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <h3 className="font-display text-base font-semibold text-garden-900 mb-2">{post.title}</h3>
+          <p className={`text-sm text-garden-700 leading-relaxed ${!isExpanded && post.text?.length > 200 ? 'line-clamp-3' : ''}`}>
+            {post.text}
+          </p>
+          {post.text?.length > 200 && (
+            <button onClick={onToggleExpand} className="text-xs text-garden-500 hover:text-garden-700 mt-1 font-medium">
+              {isExpanded ? 'Show less' : 'Read more'}
+            </button>
+          )}
+        </>
       )}
       {post.photo_url && (
         <img src={post.photo_url} alt={post.title}
@@ -299,6 +389,12 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
                 </div>
                 <span className="text-xs font-medium text-garden-800">{reply.display_name}</span>
                 <span className="text-[11px] text-garden-400">{formatTime(reply.created_at)}</span>
+                {(reply.user_id === currentUserId || isOwnerAdmin) && (
+                  <button onClick={() => onDeleteReply(reply.id)}
+                    className="ml-auto text-garden-300 hover:text-red-500 transition-colors" title="Delete reply">
+                    <X size={12} />
+                  </button>
+                )}
               </div>
               {reply.text && <p className="text-xs text-garden-700 leading-relaxed">{reply.text}</p>}
               {reply.photo_url && (
