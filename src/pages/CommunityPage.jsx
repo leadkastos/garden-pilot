@@ -44,6 +44,7 @@ export default function CommunityPage() {
       .insert({
         user_id: user.id,
         display_name: displayName,
+        avatar_url: profile?.avatar_url || null,
         category: post.category,
         title: post.title,
         text: post.text,
@@ -84,6 +85,7 @@ export default function CommunityPage() {
         post_id: postId,
         user_id: user.id,
         display_name: displayName,
+        avatar_url: profile?.avatar_url || null,
         text: replyText,
         photo_url: replyPhotoUrl || null,
         likes: 0,
@@ -243,8 +245,10 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
     <div className="card">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-garden-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0">
-            {post.display_name?.slice(0,2).toUpperCase() || 'GP'}
+          <div className="w-10 h-10 rounded-full bg-garden-600 flex items-center justify-center text-white font-medium text-sm flex-shrink-0 overflow-hidden">
+            {post.avatar_url
+              ? <img src={post.avatar_url} alt={post.display_name} className="w-full h-full object-cover" />
+              : (post.display_name?.slice(0,2).toUpperCase() || 'GP')}
           </div>
           <div>
             <p className="text-sm font-medium text-garden-900">{post.display_name}</p>
@@ -288,8 +292,10 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
           {replies.map(reply => (
             <div key={reply.id} className="bg-garden-50 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-1">
-                <div className="w-6 h-6 rounded-full bg-garden-500 flex items-center justify-center text-white text-[10px] font-medium">
-                  {reply.display_name?.slice(0,2).toUpperCase()}
+                <div className="w-6 h-6 rounded-full bg-garden-500 flex items-center justify-center text-white text-[10px] font-medium overflow-hidden">
+                  {reply.avatar_url
+                    ? <img src={reply.avatar_url} alt={reply.display_name} className="w-full h-full object-cover" />
+                    : reply.display_name?.slice(0,2).toUpperCase()}
                 </div>
                 <span className="text-xs font-medium text-garden-800">{reply.display_name}</span>
                 <span className="text-[11px] text-garden-400">{formatTime(reply.created_at)}</span>
