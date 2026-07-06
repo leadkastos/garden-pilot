@@ -101,7 +101,7 @@ export default function LoginPage() {
 
         {/* Logo — centered and large */}
         <div className="relative flex justify-center">
-          <img src="/GP-Logo-transparent.png" alt="Garden Navi" className="h-32 w-auto" />
+          <img src="/garden-navi-logo.png" alt="Garden Navi" className="h-32 w-auto" />
         </div>
 
         {/* Tagline */}
@@ -140,8 +140,7 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
-            <img src="/GP-Logo-transparent.png" alt="Garden Navi" className="h-10 w-auto"
-              style={{ filter: 'brightness(0) saturate(100%) invert(20%) sepia(50%) saturate(500%) hue-rotate(90deg)' }} />
+            <img src="/garden-navi-logo-dark.png" alt="Garden Navi" className="h-10 w-auto" />
           </div>
 
           <h1 className="font-display text-3xl font-semibold text-garden-900 mb-2">
