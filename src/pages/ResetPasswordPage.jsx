@@ -58,7 +58,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-parchment flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         <div className="flex flex-col items-center mb-6">
-          <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-16 mb-3" />
+          <img src="/GP-Logo-transparent.png" alt="Garden Navi" className="h-16 mb-3" />
           <h1 className="font-display text-2xl font-semibold text-garden-900">Set a new password</h1>
         </div>
 
