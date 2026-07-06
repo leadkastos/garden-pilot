@@ -246,7 +246,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
               <div className="flex items-start gap-2">
                 <span className="text-xl">🌿</span>
                 <div>
-                  <p className="text-xs font-medium text-garden-700 mb-1">Garden Pilot Insight</p>
+                  <p className="text-xs font-medium text-garden-700 mb-1">Garden Navi Insight</p>
                   <p className="text-sm text-garden-600">
                     {plant.status === 'Unplanted'
                       ? `${plant.name} seeds are purchased and ready to plant. ${plant.seedsInPack > 0 ? `You have ${plant.seedsInPack} seeds in the pack. ` : ''}Click "Mark as Planted" when you put them in the ground.`
