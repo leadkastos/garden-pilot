@@ -107,7 +107,7 @@ export default function Layout() {
 
           {/* Logo */}
           <div className="flex items-center flex-shrink-0">
-            <img src="/garden-navi-logo.png" alt="Garden Navi" className="h-14 w-auto" />
+            <img src="/Garden-Navi-Logo.png" alt="Garden Navi" className="h-14 w-auto" />
           </div>
 
           {/* Desktop Nav Links */}
@@ -261,7 +261,7 @@ export default function Layout() {
 
             {/* Mobile menu header with logo */}
             <div className="px-5 py-4 border-b border-white/10">
-              <img src="/garden-navi-logo.png" alt="Garden Navi" className="h-8 w-auto mb-3" />
+              <img src="/Garden-Navi-Logo.png" alt="Garden Navi" className="h-8 w-auto mb-3" />
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-green-700 flex items-center justify-center text-white font-medium overflow-hidden">
                   {profile?.avatar_url
