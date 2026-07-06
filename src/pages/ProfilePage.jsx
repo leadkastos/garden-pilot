@@ -205,7 +205,7 @@ export default function ProfilePage() {
                 }
               }} />
             <p className="text-xs text-garden-500 mt-1.5 bg-garden-50 border border-garden-100 rounded-lg px-3 py-2">
-              🌱 We use your zip code to look up your local frost dates. This lets Garden Pilot warn you if a plant won't have enough time to mature and produce before the first frost — so you plant at the right time.
+              🌱 We use your zip code to look up your local frost dates. This lets Garden Navi warn you if a plant won't have enough time to mature and produce before the first frost — so you plant at the right time.
             </p>
           </div>
 
