@@ -101,7 +101,7 @@ export default function LoginPage() {
 
         {/* Logo — centered and large */}
         <div className="relative flex justify-center">
-          <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-32 w-auto" />
+          <img src="/GP-Logo-transparent.png" alt="Garden Navi" className="h-32 w-auto" />
         </div>
 
         {/* Tagline */}
@@ -130,7 +130,7 @@ export default function LoginPage() {
         </div>
 
         <div className="relative text-green-600 text-xs">
-          © 2026 Garden Pilot · TheGardenPilot.com
+          © 2026 Garden Navi · GardenNavi.com
         </div>
       </div>
 
@@ -140,7 +140,7 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2 mb-8">
-            <img src="/GP-Logo-transparent.png" alt="Garden Pilot" className="h-10 w-auto"
+            <img src="/GP-Logo-transparent.png" alt="Garden Navi" className="h-10 w-auto"
               style={{ filter: 'brightness(0) saturate(100%) invert(20%) sepia(50%) saturate(500%) hue-rotate(90deg)' }} />
           </div>
 
