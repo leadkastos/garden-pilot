@@ -101,7 +101,7 @@ export default function LoginPage() {
 
         {/* Logo — centered and large */}
         <div className="relative flex justify-center">
-          <img src="/garden-navi-logo.png" alt="Garden Navi" className="h-32 w-auto" />
+          <img src="/Garden-Navi-Logo.png" alt="Garden Navi" className="h-32 w-auto" />
         </div>
 
         {/* Tagline */}
