@@ -37,6 +37,51 @@ const getWeatherEmoji = (code) => {
   if (code <= 99) return '⛈️'
   return '🌤️'
 }
+// Save today's weather to the calendar once per day (going forward).
+const captureWeatherToCalendar = async (userId, weatherData) => {
+  if (!userId || !weatherData?.current) return
+  const today = new Date().toISOString().slice(0, 10)
+  // Already captured today? skip.
+  const { data: existing } = await supabase
+    .from('calendar_events')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('date', today)
+    .eq('type', 'frost')
+    .eq('auto', true)
+    .limit(1)
+  if (existing && existing.length) return
+
+  const code = weatherData.current.weathercode
+  const low = weatherData.daily?.temperature_2m_min?.[0]
+  const high = weatherData.daily?.temperature_2m_max?.[0]
+
+  // Decide the label + icon
+  let icon = getWeatherEmoji(code)
+  let label
+  if (low !== undefined && low <= 32) { icon = '🥶'; label = 'Freeze warning' }
+  else if (code === 0) label = 'Sunny day'
+  else if (code <= 3) label = 'Partly cloudy'
+  else if (code <= 48) label = 'Foggy'
+  else if (code <= 67) label = 'Rainy day'
+  else if (code <= 77) { icon = '❄️'; label = 'Snow' }
+  else if (code <= 82) label = 'Showers'
+  else if (code <= 99) label = 'Thunderstorms'
+  else label = 'Mixed conditions'
+
+  const tempNote = (high !== undefined && low !== undefined)
+    ? `High ${Math.round(high)}° / Low ${Math.round(low)}°`
+    : ''
+
+  await supabase.from('calendar_events').insert({
+    user_id: userId,
+    title: `${icon} ${label}`,
+    date: today,
+    type: 'frost',
+    auto: true,
+    notes: tempNote,
+  })
+}
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 export default function DashboardPage() {
   const { user, profile } = useAuth()
@@ -153,6 +198,7 @@ export default function DashboardPage() {
           const data = await fetchWeather(latitude, longitude)
           setWeather(data)
           setWeatherLoading(false)
+          if (user) captureWeatherToCalendar(user.id, data)
         },
         async () => {
           // Fallback to Nashville if geolocation denied
@@ -160,6 +206,7 @@ export default function DashboardPage() {
           setLocation('Franklin, TN')
           setWeather(data)
           setWeatherLoading(false)
+          if (user) captureWeatherToCalendar(user.id, data)
         }
       )
     } else {
@@ -167,9 +214,10 @@ export default function DashboardPage() {
         setWeather(data)
         setLocation('Franklin, TN')
         setWeatherLoading(false)
+        if (user) captureWeatherToCalendar(user.id, data)
       })
     }
-  }, [])
+  }, [user])
   const toggleTask = (id) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
   }
