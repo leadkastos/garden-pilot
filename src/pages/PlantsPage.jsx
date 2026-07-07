@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Plus, Search, SlidersHorizontal, Leaf } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { useWriteGuard } from '../lib/useWriteGuard'
 import PlantCard from '../components/plants/PlantCard'
 import AddPlantWizard from '../components/plants/AddPlantWizard'
 import PlantDetail from '../components/plants/PlantDetail'
@@ -37,6 +38,7 @@ function toISODate(input) {
 }
 export default function PlantsPage() {
   const { user, profile } = useAuth()
+  const guard = useWriteGuard()
   const [plants, setPlants] = useState([])
   const [beds, setBeds] = useState([])
   const [search, setSearch] = useState('')
@@ -132,6 +134,7 @@ export default function PlantsPage() {
     }
   }
   const addPlant = async (plant) => {
+    if (!guard()) return
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) {
       alert('You must be logged in to save plants')
@@ -180,6 +183,7 @@ export default function PlantsPage() {
     setShowWizard(false)
   }
   const updatePlant = async (updated) => {
+    if (!guard()) return
     const { data, error } = await supabase
       .from('plants')
       .update({
@@ -217,6 +221,7 @@ export default function PlantsPage() {
     }
   }
   const deletePlant = async (plant) => {
+    if (!guard()) return
     if (!confirm(`Delete "${plant.name}"? This cannot be undone.`)) return
     const { error } = await supabase
       .from('plants')
@@ -274,6 +279,7 @@ export default function PlantsPage() {
     setShowImportConfirm(true)
   }
   const confirmImport = async () => {
+    if (!guard()) return
     for (const p of importPreview) {
       await supabase.from('plants').insert({
         user_id: user.id,
