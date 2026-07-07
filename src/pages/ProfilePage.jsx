@@ -19,6 +19,9 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedMsg, setSavedMsg] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelDone, setCancelDone] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
 
   const initials = (profile?.display_name || profile?.full_name)?.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) || 'GP'
 
@@ -88,6 +91,32 @@ export default function ProfilePage() {
     setEditing(false)
     setSavedMsg(true)
     setTimeout(() => setSavedMsg(false), 2500)
+  }
+
+  const handleCancelSubscription = async () => {
+    setCancelling(true)
+    const isAnnual = (profile?.plan || '').toLowerCase().includes('year') || (profile?.plan || '').toLowerCase().includes('annual')
+    const periodEnd = new Date(Date.now() + (isAnnual ? 365 : 30) * 86400000).toISOString()
+    await supabase.from('profiles').update({
+      cancel_at_period_end: true,
+      current_period_end: periodEnd,
+      canceled_at: new Date().toISOString(),
+    }).eq('id', user.id)
+    try {
+      await fetch('https://services.leadconnectorhq.com/hooks/l3Lbx1sx2NqTXgcEeQcA/webhook-trigger/26862e97-19d6-4050-bdc4-c8d60e0f9038', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: profile?.email || user?.email,
+          full_name: profile?.full_name || '',
+          source: 'Garden Navi Cancellation Request',
+          period_end: periodEnd,
+        }),
+      })
+    } catch (e) { /* non-blocking */ }
+    if (typeof refreshProfile === 'function') await refreshProfile()
+    setCancelling(false)
+    setCancelDone(true)
   }
 
   return (
@@ -260,6 +289,63 @@ export default function ProfilePage() {
           ))}
         </div>
       </div>
+      {/* Subscription */}
+      {profile?.subscription_status === 'active' && (
+        <div className="card">
+          <h3 className="section-title">Subscription</h3>
+          {!profile?.cancel_at_period_end ? (
+            <>
+              <p className="text-sm text-garden-500 mb-4">You're a Garden Navi member with full access.</p>
+              <button onClick={() => { setCancelDone(false); setShowCancelModal(true) }}
+                className="text-sm text-red-500 hover:text-red-600 font-medium">
+                Cancel subscription
+              </button>
+            </>
+          ) : (
+            <p className="text-sm text-garden-500">
+              Your subscription is set to cancel. You have full access until the end of your paid period, then your account becomes read-only. Your data stays saved.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Cancel confirmation modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            {!cancelDone ? (
+              <>
+                <div className="px-5 pt-6 pb-4 text-center">
+                  <h3 className="font-display text-lg font-semibold text-garden-900 mb-2">Cancel your subscription?</h3>
+                  <p className="text-sm text-garden-600 leading-relaxed">
+                    You'll keep full access until the end of your current paid period. After that, your account becomes read-only — your garden data stays saved, and you can reactivate anytime.
+                  </p>
+                </div>
+                <div className="px-5 pb-5 pt-1 flex gap-2">
+                  <button onClick={() => setShowCancelModal(false)}
+                    className="btn-secondary flex-1 justify-center py-2.5 text-sm">Keep it</button>
+                  <button onClick={handleCancelSubscription} disabled={cancelling}
+                    className="flex-1 justify-center py-2.5 text-sm rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium disabled:opacity-50">
+                    {cancelling ? 'Cancelling...' : 'Yes, cancel'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="px-5 py-6 text-center">
+                <div className="w-12 h-12 bg-garden-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">✓</span>
+                </div>
+                <h3 className="font-display text-lg font-semibold text-garden-900 mb-2">Subscription cancelled</h3>
+                <p className="text-sm text-garden-600 leading-relaxed mb-4">
+                  You'll keep full access until your paid period ends. Your data stays safe, and you can reactivate anytime.
+                </p>
+                <button onClick={() => { setShowCancelModal(false); window.location.reload() }}
+                  className="btn-primary w-full justify-center py-2.5 text-sm">Done</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
