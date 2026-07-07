@@ -92,10 +92,13 @@ export default function Layout() {
 
   const notifIcon = (type) => {
     if (type === 'frost') return '❄️'
+    if (type === 'weather') return '⛅'
     if (type === 'heat')  return '🔥'
     if (type === 'season') return '🍂'
     if (type === 'reply') return '💬'
     if (type === 'zip') return '📍'
+    if (type === 'plant') return '🌱'
+    if (type === 'harvest') return '🥕'
     if (type === 'task')  return '✅'
     return '📋'
   }
