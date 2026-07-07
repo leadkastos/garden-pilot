@@ -62,7 +62,7 @@ export default function LoginPage() {
             })
           } catch (e) { /* non-blocking — signup still succeeds if GHL is unreachable */ }
         }
-        setSuccess('Account created! Check your email to confirm, then sign in.')
+        setSuccess('Account created! Check your email to confirm your address — if you don\'t see it, please check your spam/junk folder. Then sign in.')
         setMode('login')
       }
 
