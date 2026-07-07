@@ -29,7 +29,9 @@ function guessCategory(name) {
 function toISODate(input) {
   if (!input) return null
   if (/^\d{4}-\d{2}-\d{2}/.test(input)) return input.slice(0,10)
-  const d = new Date(input)
+  // Milestone stamps look like "Jul 7, 2026 at 3:00 PM" — strip " at " so Date can parse
+  const cleaned = String(input).replace(/ at /i, ' ')
+  const d = new Date(cleaned)
   if (isNaN(d)) return null
   return d.toISOString().slice(0,10)
 }
@@ -72,12 +74,34 @@ export default function PlantsPage() {
     if (!plant?.id) return
     const desired = []
     if (plant.planted_date) {
-      desired.push({ type: 'plant', date: toISODate(plant.planted_date), title: `Planted ${plant.name}` })
+      desired.push({ type: 'plant', date: toISODate(plant.planted_date), title: `🌱 Planted ${plant.name}` })
     }
     const log = Array.isArray(plant.harvest_log) ? plant.harvest_log : []
     log.forEach(h => {
       const d = toISODate(h.date)
-      if (d) desired.push({ type: 'harvest', date: d, title: `Harvested ${plant.name}` })
+      if (d) desired.push({ type: 'harvest', date: d, title: `🥕 Harvested ${plant.name}` })
+    })
+    // Milestones ticked on the plant's Timeline → chart each with its own icon
+    const MILESTONE_ICONS = {
+      'Seed Planted': '🌰',
+      'Sprouted': '🌱',
+      'First True Leaves': '🌿',
+      'Potted Up': '🪴',
+      'Hardened Off': '💪',
+      'Moved Outdoors': '☀️',
+      'Transplanted': '🪴',
+      'Flowering': '🌸',
+      'Fruiting': '🍅',
+      'Harvest Started': '🥕',
+      'Finished': '🏁',
+    }
+    const milestones = Array.isArray(plant.milestones) ? plant.milestones : []
+    milestones.forEach(m => {
+      const d = toISODate(m.completedAt)
+      if (d) {
+        const icon = MILESTONE_ICONS[m.name] || '🌿'
+        desired.push({ type: 'plant', date: d, title: `${icon} ${plant.name}: ${m.name}` })
+      }
     })
     const { data: existing } = await supabase
       .from('calendar_events')
@@ -86,7 +110,7 @@ export default function PlantsPage() {
       .eq('plant_id', plant.id)
       .eq('auto', true)
     const existingRows = existing || []
-    const key = e => `${e.type}|${e.date}`
+    const key = e => `${e.type}|${e.date}|${e.title}`
     const desiredKeys = new Set(desired.map(key))
     const existingKeys = new Set(existingRows.map(key))
     const toInsert = desired
