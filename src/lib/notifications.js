@@ -87,13 +87,18 @@ export async function generateNotifications(userId, profile) {
     }
   })
 
-  // 2. Today's tasks / harvests
+  // 2. Today's calendar events (planting, milestones, weather) — keep their real type for the icon
   ;(events || []).forEach((e) => {
+    // Map calendar event types to the bell's icon types
+    let notifType = 'task'
+    if (e.type === 'frost') notifType = 'weather'   // weather events
+    else if (e.type === 'plant') notifType = 'plant' // planting + milestones
+    else if (e.type === 'harvest') notifType = 'harvest'
     desired.push({
       key: `event-${e.id}`,
-      type: 'task',
+      type: notifType,
       title: e.title,
-      body: `On your calendar for today.`,
+      body: 'On your calendar for today.',
     })
   })
 
