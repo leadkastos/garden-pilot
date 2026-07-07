@@ -39,6 +39,15 @@ function nowStamp() {
 function todayLabel() {
   return new Date().toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })
 }
+// Convert a stored stamp ("Jul 7, 2026 at 10:48 AM") to datetime-local value ("2026-07-07T10:48")
+function stampToInputValue(stamp) {
+  if (!stamp) return ''
+  const cleaned = String(stamp).replace(/ at /i, ' ')
+  const d = new Date(cleaned)
+  if (isNaN(d)) return ''
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusColors }) {
   const [showTodayModal, setShowTodayModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -49,6 +58,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
   const [newNote, setNewNote] = useState('')
   const [harvestLog, setHarvestLog] = useState(Array.isArray(plant.harvestLog) ? plant.harvestLog : [])
   const [timeline, setTimeline] = useState(Array.isArray(plant.milestones) ? plant.milestones : [])
+  const [editingMilestone, setEditingMilestone] = useState(null)
   const [germSprouted, setGermSprouted] = useState(plant.seedsSprouted || 0)
   const [growAgain, setGrowAgain] = useState(plant.growAgain ?? null)
   const [photos, setPhotos] = useState(Array.isArray(plant.photos) ? plant.photos : [])
@@ -101,6 +111,17 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
     }
     setTimeline(updated)
     persist({ milestones: updated })
+  }
+  const editMilestoneDate = (name, isoDatetime) => {
+    // isoDatetime comes from a datetime-local input: "2026-07-06T14:30"
+    const d = new Date(isoDatetime)
+    if (isNaN(d)) return
+    const stamp = d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) +
+      ' at ' + d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true })
+    const updated = timeline.map(x => x.name === name ? { ...x, completedAt: stamp } : x)
+    setTimeline(updated)
+    persist({ milestones: updated })
+    setEditingMilestone(null)
   }
   const saveGerm = () => {
     const rate = plant.seedsPlanted > 0 ? Math.round((germSprouted / plant.seedsPlanted) * 100) : 0
@@ -353,30 +374,58 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
               {MILESTONES.map((m, i) => {
                 const doneEntry = timeline.find(x => x.name === m)
                 const done = !!doneEntry
+                const isEditing = editingMilestone === m
                 return (
-                  <button key={m} onClick={() => toggleMilestone(m)}
-                    className="relative flex items-center gap-4 w-full py-3 text-left group">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 z-10 border-2 transition-all ${
-                      done
-                        ? 'bg-garden-600 border-garden-600'
-                        : 'bg-white border-garden-200 group-hover:border-garden-400'
-                    }`}>
+                  <div key={m} className="relative flex items-start gap-4 w-full py-3">
+                    <button onClick={() => toggleMilestone(m)}
+                      className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 z-10 border-2 transition-all ${
+                        done
+                          ? 'bg-garden-600 border-garden-600'
+                          : 'bg-white border-garden-200 hover:border-garden-400'
+                      }`}>
                       {done
                         ? <CheckCircle2 size={20} className="text-white" />
                         : <span className="text-xs font-medium text-garden-400">{i+1}</span>
                       }
-                    </div>
+                    </button>
                     <div className={`flex-1 py-3 px-4 rounded-xl border transition-all ${
                       done
                         ? 'bg-garden-50 border-garden-200'
-                        : 'bg-white border-garden-100 group-hover:border-garden-200'
+                        : 'bg-white border-garden-100'
                     }`}>
-                      <p className={`text-sm font-medium ${done ? 'text-garden-800' : 'text-garden-500'}`}>{m}</p>
-                      {done && doneEntry.completedAt && (
-                        <p className="text-xs text-garden-500 mt-0.5 font-medium">✅ {doneEntry.completedAt}</p>
+                      <button onClick={() => toggleMilestone(m)} className="text-left w-full">
+                        <p className={`text-sm font-medium ${done ? 'text-garden-800' : 'text-garden-500'}`}>{m}</p>
+                        {done && doneEntry.completedAt && !isEditing && (
+                          <p className="text-xs text-garden-500 mt-0.5 font-medium">✅ {doneEntry.completedAt}</p>
+                        )}
+                      </button>
+                      {done && !isEditing && (
+                        <button onClick={() => setEditingMilestone(m)}
+                          className="text-xs text-garden-600 hover:text-garden-800 font-medium mt-1 underline underline-offset-2">
+                          Edit date
+                        </button>
+                      )}
+                      {done && isEditing && (
+                        <div className="mt-2 space-y-2">
+                          <input
+                            type="datetime-local"
+                            defaultValue={stampToInputValue(doneEntry.completedAt)}
+                            id={`ms-date-${i}`}
+                            className="input-field text-sm" />
+                          <div className="flex gap-2">
+                            <button onClick={() => setEditingMilestone(null)}
+                              className="btn-secondary flex-1 justify-center py-1.5 text-xs">Cancel</button>
+                            <button
+                              onClick={() => {
+                                const val = document.getElementById(`ms-date-${i}`).value
+                                if (val) editMilestoneDate(m, val)
+                              }}
+                              className="btn-primary flex-1 justify-center py-1.5 text-xs">Save date</button>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </button>
+                  </div>
                 )
               })}
             </div>
