@@ -108,7 +108,7 @@ export default function CommunityPage() {
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: p.likes + 1, _liked: true } : p))
     }
   }
-  const addReply = async (postId, replyText, replyPhotoUrl) => {
+  const addReply = async (postId, replyText, replyPhotoUrl, parentReplyId = null) => {
     const displayName = profile?.display_name || profile?.full_name || user?.email?.split('@')[0] || 'Gardener'
     const { data, error } = await supabase
       .from('community_replies')
@@ -119,6 +119,7 @@ export default function CommunityPage() {
         avatar_url: profile?.avatar_url || null,
         text: replyText,
         photo_url: replyPhotoUrl || null,
+        parent_reply_id: parentReplyId,
         likes: 0,
       })
       .select()
@@ -129,6 +130,31 @@ export default function CommunityPage() {
           ? { ...p, community_replies: [...(p.community_replies || []), data] }
           : p
       ))
+      // --- Notification: tell the right person someone replied ---
+      const post = posts.find(p => p.id === postId)
+      let recipientId = null
+      let context = ''
+      if (parentReplyId) {
+        // Reply to a specific comment → notify that comment's author
+        const parent = (post?.community_replies || []).find(r => r.id === parentReplyId)
+        recipientId = parent?.user_id
+        context = 'your comment'
+      } else {
+        // Reply to the post → notify the post author
+        recipientId = post?.user_id
+        context = 'your post'
+      }
+      // Don't notify yourself
+      if (recipientId && recipientId !== user.id) {
+        await supabase.from('notifications').insert({
+          user_id: recipientId,
+          type: 'reply',
+          title: `${displayName} replied to ${context}`,
+          body: replyText ? replyText.slice(0, 120) : 'Sent a photo',
+          link: `reply-${data.id}`,
+          read: false,
+        })
+      }
     }
   }
   const filteredPosts = posts.filter(p => {
@@ -194,7 +220,7 @@ export default function CommunityPage() {
               isExpanded={expandedPost === post.id}
               onToggleExpand={() => setExpandedPost(expandedPost === post.id ? null : post.id)}
               onLike={() => toggleLike(post.id)}
-              onReply={(text, photoUrl) => addReply(post.id, text, photoUrl)}
+              onReply={(text, photoUrl, parentId) => addReply(post.id, text, photoUrl, parentId)}
               onReport={() => setReportingPost(post)}
               onEdit={(changes) => editPost(post.id, changes)}
               onDelete={() => deletePost(post.id)}
@@ -242,6 +268,7 @@ export default function CommunityPage() {
 }
 function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport, onEdit, onDelete, onDeleteReply, canManage, isOwnerAdmin, formatTime, categories, currentUserId }) {
   const [replyText, setReplyText] = useState('')
+  const [replyingTo, setReplyingTo] = useState(null) // parent reply id, or null = reply to post
   const [replyPhoto, setReplyPhoto] = useState('')
   const [replyUploading, setReplyUploading] = useState(false)
   const [replyError, setReplyError] = useState('')
@@ -281,9 +308,10 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
 
   const handleReply = () => {
     if (!replyText.trim() && !replyPhoto) return
-    onReply(replyText.trim(), replyPhoto)
+    onReply(replyText.trim(), replyPhoto, replyingTo)
     setReplyText('')
     setReplyPhoto('')
+    setReplyingTo(null)
   }
   const handleEditPhoto = async (e) => {
     const file = e.target.files?.[0]
@@ -446,29 +474,81 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
       </div>
       {replies.length > 0 && (
         <div className="mt-3 space-y-2 pl-4 border-l-2 border-garden-100">
-          {replies.map(reply => (
-            <div key={reply.id} className="bg-garden-50 rounded-xl p-3">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-6 h-6 rounded-full bg-garden-500 flex items-center justify-center text-white text-[10px] font-medium overflow-hidden">
-                  {reply.avatar_url
-                    ? <img src={reply.avatar_url} alt={reply.display_name} className="w-full h-full object-cover" />
-                    : reply.display_name?.slice(0,2).toUpperCase()}
-                </div>
-                <span className="text-xs font-medium text-garden-800">{reply.display_name}</span>
-                <span className="text-[11px] text-garden-400">{formatTime(reply.created_at)}</span>
-                {(reply.user_id === currentUserId || isOwnerAdmin) && (
-                  <button onClick={() => onDeleteReply(reply.id)}
-                    className="ml-auto text-garden-300 hover:text-red-500 transition-colors" title="Delete reply">
-                    <X size={12} />
+          {replies.filter(r => !r.parent_reply_id).map(reply => {
+            const children = replies.filter(r => r.parent_reply_id === reply.id)
+            return (
+              <div key={reply.id}>
+                <div className="bg-garden-50 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-6 h-6 rounded-full bg-garden-500 flex items-center justify-center text-white text-[10px] font-medium overflow-hidden">
+                      {reply.avatar_url
+                        ? <img src={reply.avatar_url} alt={reply.display_name} className="w-full h-full object-cover" />
+                        : reply.display_name?.slice(0,2).toUpperCase()}
+                    </div>
+                    <span className="text-xs font-medium text-garden-800">{reply.display_name}</span>
+                    <span className="text-[11px] text-garden-400">{formatTime(reply.created_at)}</span>
+                    {(reply.user_id === currentUserId || isOwnerAdmin) && (
+                      <button onClick={() => onDeleteReply(reply.id)}
+                        className="ml-auto text-garden-300 hover:text-red-500 transition-colors" title="Delete reply">
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                  {reply.text && <p className="text-xs text-garden-700 leading-relaxed">{reply.text}</p>}
+                  {reply.photo_url && (
+                    <img src={reply.photo_url} alt="Reply" className="mt-2 rounded-lg border border-garden-100 max-h-56 object-cover" />
+                  )}
+                  <button
+                    onClick={() => { setReplyingTo(replyingTo === reply.id ? null : reply.id); }}
+                    className="text-[11px] text-garden-500 hover:text-garden-700 font-medium mt-1.5">
+                    {replyingTo === reply.id ? 'Cancel' : 'Reply'}
                   </button>
+                </div>
+
+                {/* Nested replies to this comment */}
+                {children.length > 0 && (
+                  <div className="mt-2 ml-5 space-y-2 pl-3 border-l-2 border-garden-100">
+                    {children.map(child => (
+                      <div key={child.id} className="bg-garden-50/70 rounded-xl p-2.5">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-5 h-5 rounded-full bg-garden-400 flex items-center justify-center text-white text-[9px] font-medium overflow-hidden">
+                            {child.avatar_url
+                              ? <img src={child.avatar_url} alt={child.display_name} className="w-full h-full object-cover" />
+                              : child.display_name?.slice(0,2).toUpperCase()}
+                          </div>
+                          <span className="text-[11px] font-medium text-garden-800">{child.display_name}</span>
+                          <span className="text-[10px] text-garden-400">{formatTime(child.created_at)}</span>
+                          {(child.user_id === currentUserId || isOwnerAdmin) && (
+                            <button onClick={() => onDeleteReply(child.id)}
+                              className="ml-auto text-garden-300 hover:text-red-500 transition-colors" title="Delete reply">
+                              <X size={11} />
+                            </button>
+                          )}
+                        </div>
+                        {child.text && <p className="text-[11px] text-garden-700 leading-relaxed">{child.text}</p>}
+                        {child.photo_url && (
+                          <img src={child.photo_url} alt="Reply" className="mt-1.5 rounded-lg border border-garden-100 max-h-48 object-cover" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Inline reply box when replying to this comment */}
+                {replyingTo === reply.id && (
+                  <div className="mt-2 ml-5 flex gap-2 items-center">
+                    <input className="input-field flex-1 text-xs" placeholder={`Reply to ${reply.display_name}...`}
+                      value={replyText} onChange={e => setReplyText(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleReply()} autoFocus />
+                    <button onClick={handleReply} disabled={!replyText.trim() && !replyPhoto}
+                      className="btn-primary px-3 py-1.5 disabled:opacity-40">
+                      <Send size={13} />
+                    </button>
+                  </div>
                 )}
               </div>
-              {reply.text && <p className="text-xs text-garden-700 leading-relaxed">{reply.text}</p>}
-              {reply.photo_url && (
-                <img src={reply.photo_url} alt="Reply" className="mt-2 rounded-lg border border-garden-100 max-h-56 object-cover" />
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
       {replyPhoto && (
@@ -482,8 +562,10 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
       )}
       {replyError && <p className="text-xs text-red-600 mt-1.5">{replyError}</p>}
       <div className="mt-3 flex gap-2 items-center">
-        <input className="input-field flex-1 text-sm" placeholder="Write a reply..."
-          value={replyText} onChange={e => setReplyText(e.target.value)}
+        <input className="input-field flex-1 text-sm" placeholder="Write a reply to this post..."
+          value={replyingTo === null ? replyText : ''}
+          onFocus={() => setReplyingTo(null)}
+          onChange={e => { setReplyingTo(null); setReplyText(e.target.value) }}
           onKeyDown={e => e.key === 'Enter' && handleReply()} />
         <label className={`btn-secondary px-3 cursor-pointer flex-shrink-0 ${replyUploading ? 'opacity-60' : ''}`} title="Add photo">
           {replyUploading ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
