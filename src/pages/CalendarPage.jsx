@@ -184,7 +184,7 @@ export default function CalendarPage() {
               return (
                 <div key={idx}
                   onClick={() => cell.currentMonth && cell.dateStr && handleDayClick(cell.dateStr)}
-                  className={`min-h-[72px] p-1.5 border-r border-b border-garden-50 transition-colors ${cell.currentMonth ? 'cursor-pointer hover:bg-garden-50' : 'bg-gray-50/50'}`}>
+                  className={`min-h-[120px] p-1.5 border-r border-b border-garden-50 transition-colors ${cell.currentMonth ? 'cursor-pointer hover:bg-garden-50' : 'bg-gray-50/50'}`}>
                   <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium mb-1 ${isCurrentDay ? 'text-white' : cell.currentMonth ? 'text-garden-800' : 'text-garden-300'}`}
                     style={isCurrentDay ? { backgroundColor: '#1e3d1a' } : {}}>
                     {cell.day}
