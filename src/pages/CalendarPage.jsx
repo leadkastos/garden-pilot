@@ -194,7 +194,7 @@ export default function CalendarPage() {
                       const type = EVENT_TYPES[event.type] || EVENT_TYPES.manual
                       return (
                         <div key={i} className={`text-[10px] px-1 py-0.5 rounded font-medium truncate ${type.bg} ${type.text}`}>
-                          {event.title}
+                          {event.auto ? event.title : `${type.emoji} ${event.title}`}
                         </div>
                       )
                     })}
