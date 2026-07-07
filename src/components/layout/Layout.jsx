@@ -95,6 +95,7 @@ export default function Layout() {
     if (type === 'heat')  return '🔥'
     if (type === 'season') return '🍂'
     if (type === 'reply') return '💬'
+    if (type === 'zip') return '📍'
     if (type === 'task')  return '✅'
     return '📋'
   }
@@ -173,7 +174,8 @@ export default function Layout() {
                         <p className="text-sm text-garden-400">You're all caught up 🌱</p>
                       </div>
                     ) : notifs.map(n => (
-                      <div key={n.id} className={`px-4 py-3 hover:bg-garden-50 transition-colors group ${!n.read ? 'bg-garden-50/50' : ''}`}>
+                      <div key={n.id} className={`px-4 py-3 hover:bg-garden-50 transition-colors group ${!n.read ? 'bg-garden-50/50' : ''} ${n.type === 'zip' ? 'cursor-pointer' : ''}`}
+                        onClick={n.type === 'zip' ? () => { setShowNotifs(false); navigate('/profile') } : undefined}>
                         <div className="flex gap-3">
                           <span className="text-base mt-0.5">{notifIcon(n.type)}</span>
                           <div className="flex-1 min-w-0">
@@ -181,7 +183,7 @@ export default function Layout() {
                               <p className="text-sm font-medium text-garden-900 truncate">{n.title}</p>
                               <div className="flex items-center gap-1.5 flex-shrink-0">
                                 {!n.read && <div className="w-2 h-2 bg-garden-500 rounded-full" />}
-                                <button onClick={() => deleteOne(n.id)}
+                                <button onClick={(e) => { e.stopPropagation(); deleteOne(n.id) }}
                                   className="opacity-0 group-hover:opacity-100 transition-opacity text-garden-300 hover:text-red-500"
                                   title="Delete">
                                   <X size={13} />
@@ -190,6 +192,9 @@ export default function Layout() {
                             </div>
                             <p className="text-xs text-garden-500 mt-0.5 line-clamp-2">{n.body}</p>
                             <p className="text-[11px] text-garden-400 mt-1">{timeAgo(n.created_at)}</p>
+                            {n.type === 'zip' && (
+                              <p className="text-[11px] text-garden-700 font-medium mt-1">Tap to add your zip →</p>
+                            )}
                           </div>
                         </div>
                       </div>
