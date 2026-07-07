@@ -17,6 +17,21 @@ const fetchWeather = async (lat, lon) => {
     return await res.json()
   } catch (e) { return null }
 }
+// Convert a US zip code to { lat, lon, name } using the free Zippopotam API
+const geocodeZip = async (zip) => {
+  try {
+    const res = await fetch(`https://api.zippopotam.us/us/${zip}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    const place = data.places?.[0]
+    if (!place) return null
+    return {
+      lat: parseFloat(place.latitude),
+      lon: parseFloat(place.longitude),
+      name: `${place['place name']}, ${place['state abbreviation']}`,
+    }
+  } catch (e) { return null }
+}
 const getWeatherDesc = (code) => {
   if (code === 0) return 'Clear sky'
   if (code <= 3) return 'Partly cloudy'
@@ -180,44 +195,61 @@ export default function DashboardPage() {
       photos,
     })
   }
-  // Get weather based on user's location
+  // Get weather — zip code first (reliable, no permission prompt), geolocation as fallback
   useEffect(() => {
+    if (!user) return
+    let cancelled = false
     setWeatherLoading(true)
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude, longitude } = pos.coords
-          // Reverse geocode for city name using a free API
-          try {
-            const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
-            const geoData = await geoRes.json()
-            const city = geoData.address?.city || geoData.address?.town || geoData.address?.county || 'Your area'
-            const state = geoData.address?.state_code || ''
-            setLocation(`${city}${state ? ', ' + state : ''}`)
-          } catch {}
-          const data = await fetchWeather(latitude, longitude)
-          setWeather(data)
-          setWeatherLoading(false)
-          if (user) captureWeatherToCalendar(user.id, data)
-        },
-        async () => {
-          // Fallback to Nashville if geolocation denied
-          const data = await fetchWeather(36.1627, -86.7816)
-          setLocation('Franklin, TN')
-          setWeather(data)
-          setWeatherLoading(false)
-          if (user) captureWeatherToCalendar(user.id, data)
-        }
-      )
-    } else {
-      fetchWeather(36.1627, -86.7816).then(data => {
-        setWeather(data)
-        setLocation('Franklin, TN')
-        setWeatherLoading(false)
-        if (user) captureWeatherToCalendar(user.id, data)
-      })
+
+    const loadByCoords = async (lat, lon, name) => {
+      const data = await fetchWeather(lat, lon)
+      if (cancelled) return
+      if (name) setLocation(name)
+      setWeather(data)
+      setWeatherLoading(false)
+      captureWeatherToCalendar(user.id, data)
     }
-  }, [user])
+
+    const run = async () => {
+      // 1. Try the user's saved zip code
+      const zip = profile?.zip_code
+      if (zip && /^\d{5}$/.test(zip)) {
+        const geo = await geocodeZip(zip)
+        if (geo && !cancelled) {
+          await loadByCoords(geo.lat, geo.lon, geo.name)
+          return
+        }
+      }
+      // 2. Fallback: browser geolocation
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const { latitude, longitude } = pos.coords
+            let name = 'Your area'
+            try {
+              const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`)
+              const geoData = await geoRes.json()
+              const city = geoData.address?.city || geoData.address?.town || geoData.address?.county || 'Your area'
+              const state = geoData.address?.state_code || ''
+              name = `${city}${state ? ', ' + state : ''}`
+            } catch {}
+            loadByCoords(latitude, longitude, name)
+          },
+          () => {
+            // 3. Final fallback: Franklin, TN
+            loadByCoords(36.1627, -86.7816, 'Franklin, TN')
+          },
+          { timeout: 8000 }
+        )
+      } else {
+        loadByCoords(36.1627, -86.7816, 'Franklin, TN')
+      }
+    }
+
+    run()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, profile?.zip_code])
   const toggleTask = (id) => {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))
   }
