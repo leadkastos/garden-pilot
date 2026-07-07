@@ -66,13 +66,23 @@ export default function Layout() {
   }
 
   const deleteOne = async (id) => {
+    const target = notifs.find(x => x.id === id)
     setNotifs(n => n.filter(x => x.id !== id))
     await supabase.from('notifications').delete().eq('id', id).eq('user_id', user.id)
+    if (target?.link) {
+      await supabase.from('dismissed_notifications')
+        .upsert({ user_id: user.id, notif_key: target.link }, { onConflict: 'user_id,notif_key' })
+    }
   }
 
   const clearAll = async () => {
+    const keys = notifs.map(x => x.link).filter(Boolean)
     setNotifs([])
     await supabase.from('notifications').delete().eq('user_id', user.id)
+    if (keys.length) {
+      await supabase.from('dismissed_notifications')
+        .upsert(keys.map(k => ({ user_id: user.id, notif_key: k })), { onConflict: 'user_id,notif_key' })
+    }
   }
 
   const handleSignOut = async () => {
