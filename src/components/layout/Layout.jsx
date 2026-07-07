@@ -94,6 +94,7 @@ export default function Layout() {
     if (type === 'frost') return '❄️'
     if (type === 'heat')  return '🔥'
     if (type === 'season') return '🍂'
+    if (type === 'reply') return '💬'
     if (type === 'task')  return '✅'
     return '📋'
   }
