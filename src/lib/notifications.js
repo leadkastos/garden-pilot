@@ -115,9 +115,16 @@ export async function generateNotifications(userId, profile) {
     .select('*')
     .eq('user_id', userId)
 
+  // Also skip anything the user previously dismissed/cleared
+  const { data: dismissedRows } = await supabase
+    .from('dismissed_notifications')
+    .select('notif_key')
+    .eq('user_id', userId)
+
   const existingKeys = new Set((existing || []).map((r) => r.link))
+  const dismissedKeys = new Set((dismissedRows || []).map((r) => r.notif_key))
   const toInsert = desired
-    .filter((d) => !existingKeys.has(d.key))
+    .filter((d) => !existingKeys.has(d.key) && !dismissedKeys.has(d.key))
     .map((d) => ({
       user_id: userId,
       type: d.type,
