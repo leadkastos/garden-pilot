@@ -45,6 +45,22 @@ export default function LoginPage() {
             trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             created_at: new Date().toISOString()
           })
+          // Push new trial signup to GHL for lead capture / conversion sequences
+          try {
+            const parts = (name || '').trim().split(' ')
+            await fetch('https://services.leadconnectorhq.com/hooks/l3Lbx1sx2NqTXgcEeQcA/webhook-trigger/26862e97-19d6-4050-bdc4-c8d60e0f9038', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email,
+                first_name: parts[0] || '',
+                last_name: parts.slice(1).join(' ') || '',
+                full_name: name,
+                trial_ends_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                source: 'Garden Navi Trial Signup',
+              }),
+            })
+          } catch (e) { /* non-blocking — signup still succeeds if GHL is unreachable */ }
         }
         setSuccess('Account created! Check your email to confirm, then sign in.')
         setMode('login')
