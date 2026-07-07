@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './styles/globals.css'
 import { AuthProvider, useAuth } from './lib/AuthContext'
 import Layout from './components/layout/Layout'
+import UpgradeModal from './components/UpgradeModal'
 import LoginPage from './pages/LoginPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
@@ -16,7 +17,7 @@ import LedgerPage from './pages/LedgerPage'
 import CalendarPage from './pages/CalendarPage'
 import ReportsPage from './pages/ReportsPage'
 import CommunityPage from './pages/CommunityPage'
-// Protected route — redirects to login if not authenticated
+
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
   if (loading) {
@@ -32,10 +33,12 @@ function ProtectedRoute({ children }) {
   if (!user) return <Navigate to="/login" replace />
   return children
 }
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <UpgradeModal />
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<LoginPage />} />
@@ -64,4 +67,5 @@ function App() {
     </BrowserRouter>
   )
 }
+
 ReactDOM.createRoot(document.getElementById('root')).render(<App />)
