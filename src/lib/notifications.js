@@ -49,6 +49,17 @@ export async function generateNotifications(userId, profile) {
 
   const desired = []
 
+  // 0. Zip nudge — if no zip on file, remind them daily (keyed by date so it re-fires each day)
+  const hasZip = profile?.zip_code && /^\d{5}$/.test(profile.zip_code)
+  if (!hasZip) {
+    desired.push({
+      key: `zip-nudge-${todayISO()}`,
+      type: 'zip',
+      title: 'Add your zip code',
+      body: 'Add your zip to unlock local weather and frost warnings. Tap here to add it in your profile.',
+    })
+  }
+
   // 1. Frost-timing warnings — only for recently-added plants (decision still actionable)
   const now = Date.now()
   const RECENT_MS = 14 * 86400000
