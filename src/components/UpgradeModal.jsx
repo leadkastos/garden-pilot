@@ -4,7 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 // App-wide upgrade popup.
 // - Opens automatically on login when a user is in read-only mode.
 // - Also opens when any blocked write fires the 'gn:show-upgrade' event.
-const PAY_URL = 'https://gardennavi.com/checkout'  // update if your checkout URL differs
+const PAY_URL = 'https://realworldbusiness.co/garden-navi-176819'
 
 export default function UpgradeModal() {
   const { isReadOnly, readOnlyReason } = useAuth()
