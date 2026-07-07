@@ -65,6 +65,7 @@ export default function CommunityPage() {
         title: changes.title,
         text: changes.text,
         category: changes.category,
+        photo_url: changes.photo_url,
         updated_at: new Date().toISOString(),
       })
       .eq('id', postId)
@@ -249,6 +250,9 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
   const [editTitle, setEditTitle] = useState(post.title || '')
   const [editText, setEditText] = useState(post.text || '')
   const [editCategory, setEditCategory] = useState(post.category || 'general')
+  const [editPhoto, setEditPhoto] = useState(post.photo_url || '')
+  const [editPhotoUploading, setEditPhotoUploading] = useState(false)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
   const cat = categories.find(c => c.id === post.category)
   const replies = post.community_replies || []
 
@@ -281,9 +285,30 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
     setReplyText('')
     setReplyPhoto('')
   }
+  const handleEditPhoto = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) return
+    if (file.size > 10 * 1024 * 1024) return
+    setEditPhotoUploading(true)
+    try {
+      const compressed = await compressImage(file)
+      const path = `community/${currentUserId}/${Date.now()}.jpg`
+      const { error } = await supabase.storage
+        .from('plant-photos')
+        .upload(path, compressed, { cacheControl: '3600', upsert: false, contentType: 'image/jpeg' })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('plant-photos').getPublicUrl(path)
+      setEditPhoto(publicUrl)
+    } catch (err) {
+      // silent — keep existing photo on failure
+    } finally {
+      setEditPhotoUploading(false)
+    }
+  }
   const saveEdit = () => {
     if (!editTitle.trim() || !editText.trim()) return
-    onEdit({ title: editTitle.trim(), text: editText.trim(), category: editCategory })
+    onEdit({ title: editTitle.trim(), text: editText.trim(), category: editCategory, photo_url: editPhoto || null })
     setEditing(false)
   }
   return (
@@ -343,6 +368,33 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
           </div>
           <input className="input-field text-sm" value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Title" />
           <textarea className="input-field text-sm resize-none" rows={4} value={editText} onChange={e => setEditText(e.target.value)} placeholder="Post" />
+
+          {/* Image edit controls */}
+          {editPhoto ? (
+            <div className="relative inline-block">
+              <img src={editPhoto} alt="Post" className="rounded-xl border border-garden-100 max-h-48 object-cover" />
+              <button onClick={() => setEditPhoto('')}
+                className="absolute top-2 right-2 w-8 h-8 bg-black/60 hover:bg-red-500 rounded-full flex items-center justify-center text-white transition-colors"
+                title="Remove image">
+                <X size={16} />
+              </button>
+            </div>
+          ) : (
+            <label className={`border-2 border-dashed border-garden-200 rounded-xl p-4 text-center block cursor-pointer transition-colors ${editPhotoUploading ? 'opacity-60' : 'hover:border-garden-400'}`}>
+              {editPhotoUploading ? (
+                <div className="flex items-center justify-center gap-2 text-garden-500">
+                  <Loader2 size={16} className="animate-spin" /> <span className="text-xs">Uploading...</span>
+                </div>
+              ) : (
+                <>
+                  <Camera size={18} className="text-garden-300 mx-auto mb-1" />
+                  <p className="text-xs text-garden-500 font-medium">Add a photo</p>
+                </>
+              )}
+              <input type="file" accept="image/*" className="hidden" onChange={handleEditPhoto} disabled={editPhotoUploading} />
+            </label>
+          )}
+
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)} className="btn-secondary flex-1 justify-center py-2 text-sm">Cancel</button>
             <button onClick={saveEdit} disabled={!editTitle.trim() || !editText.trim()}
@@ -362,9 +414,24 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
           )}
         </>
       )}
-      {post.photo_url && (
-        <img src={post.photo_url} alt={post.title}
-          className="mt-3 w-full rounded-xl border border-garden-100 object-cover max-h-96" />
+      {post.photo_url && !editing && (
+        <button onClick={() => setLightboxOpen(true)}
+          className="mt-3 block w-full max-w-md mx-auto rounded-xl overflow-hidden border border-garden-100 hover:opacity-95 transition-opacity">
+          <img src={post.photo_url} alt={post.title}
+            className="w-full max-h-64 object-cover" />
+        </button>
+      )}
+      {/* Lightbox */}
+      {lightboxOpen && post.photo_url && (
+        <div onClick={() => setLightboxOpen(false)}
+          className="fixed inset-0 bg-black/85 z-[70] flex items-center justify-center p-4 cursor-zoom-out">
+          <img src={post.photo_url} alt={post.title}
+            className="max-w-full max-h-full object-contain rounded-lg" />
+          <button onClick={() => setLightboxOpen(false)}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white">
+            <X size={20} />
+          </button>
+        </div>
       )}
       <div className="flex items-center gap-4 mt-3 pt-3 border-t border-garden-50">
         <button onClick={onLike}
