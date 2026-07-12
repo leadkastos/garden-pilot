@@ -2,16 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { Plus, BookOpen, Printer, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
-
+import { useWriteGuard } from '../lib/useWriteGuard'
 const SEASONS = {
   '01': 'Winter', '02': 'Winter', '03': 'Spring',
   '04': 'Spring', '05': 'Spring', '06': 'Summer',
   '07': 'Summer', '08': 'Summer', '09': 'Fall',
   '10': 'Fall',   '11': 'Fall',   '12': 'Winter'
 }
-
 const SEASON_EMOJIS = { Winter: '❄️', Spring: '🌱', Summer: '☀️', Fall: '🍂' }
-
 const MOODS = [
   { emoji: '😊', label: 'Great day' },
   { emoji: '🌱', label: 'Planted' },
@@ -22,9 +20,9 @@ const MOODS = [
   { emoji: '📚', label: 'Learning' },
   { emoji: '😤', label: 'Frustrating' },
 ]
-
 export default function JournalPage() {
   const { user } = useAuth()
+  const guard = useWriteGuard()
   const [entries, setEntries] = useState([])
   const [newEntry, setNewEntry] = useState('')
   const [selectedMood, setSelectedMood] = useState(null)
@@ -32,12 +30,10 @@ export default function JournalPage() {
   const [expandedEntry, setExpandedEntry] = useState(null)
   const [loading, setLoading] = useState(true)
   const textareaRef = useRef()
-
   useEffect(() => {
     if (!user) return
     fetchEntries()
   }, [user])
-
   const fetchEntries = async () => {
     setLoading(true)
     const { data } = await supabase
@@ -48,13 +44,12 @@ export default function JournalPage() {
     setEntries(data || [])
     setLoading(false)
   }
-
   const saveEntry = async () => {
+    if (!guard()) return
     if (!newEntry.trim()) return
     const now = new Date()
     const month = String(now.getMonth() + 1).padStart(2, '0')
     const dateStr = now.toISOString().slice(0, 10)
-
     const { data, error } = await supabase
       .from('journal_entries')
       .insert({
@@ -70,41 +65,35 @@ export default function JournalPage() {
       })
       .select()
       .single()
-
     if (!error && data) {
       setEntries(prev => [data, ...prev])
       setNewEntry('')
       setSelectedMood(null)
     }
   }
-
   const deleteEntry = async (id) => {
+    if (!guard()) return
     if (!confirm('Delete this journal entry?')) return
     await supabase.from('journal_entries').delete().eq('id', id).eq('user_id', user.id)
     setEntries(prev => prev.filter(e => e.id !== id))
   }
-
   const filteredEntries = entries.filter(e => e.year === yearFilter)
-
   const availableYears = [...new Set([
     ...entries.map(e => e.year),
     new Date().getFullYear().toString()
   ])].filter(Boolean).sort().reverse()
-
   const groupedBySeason = filteredEntries.reduce((acc, entry) => {
     const season = `${entry.season} ${entry.year}`
     if (!acc[season]) acc[season] = []
     acc[season].push(entry)
     return acc
   }, {})
-
   const seasonOrder = ['Spring', 'Summer', 'Fall', 'Winter']
   const sortedSeasons = Object.keys(groupedBySeason).sort((a, b) => {
     const [aSeason] = a.split(' ')
     const [bSeason] = b.split(' ')
     return seasonOrder.indexOf(aSeason) - seasonOrder.indexOf(bSeason)
   })
-
   const todayEntries = filteredEntries.filter(e => e.date === new Date().toISOString().slice(0,10))
   const thisWeekCount = filteredEntries.filter(e => {
     const entryDate = new Date(e.date)
@@ -112,7 +101,6 @@ export default function JournalPage() {
     weekAgo.setDate(weekAgo.getDate() - 7)
     return entryDate >= weekAgo
   }).length
-
   const handlePrint = () => {
     const printWindow = window.open('', '_blank')
     const entriesHTML = sortedSeasons.map(season => {
@@ -134,7 +122,6 @@ export default function JournalPage() {
         </div>
       `
     }).join('')
-
     printWindow.document.write(`
       <!DOCTYPE html><html><head><title>My Garden Journal ${yearFilter}</title>
       <style>
@@ -150,14 +137,13 @@ export default function JournalPage() {
       <h1>🌱 My Garden Journal</h1>
       <p class="subtitle">${yearFilter} Growing Season · ${filteredEntries.length} entries</p>
       ${entriesHTML}
-      <div class="footer">Garden Pilot · TheGardenPilot.com</div>
+      <div class="footer">Garden Navi · GardenNavi.com</div>
       </body></html>
     `)
     printWindow.document.close()
     printWindow.focus()
     setTimeout(() => { printWindow.print(); printWindow.close() }, 500)
   }
-
   return (
     <div className="space-y-5 pb-20 max-w-2xl mx-auto">
       <div className="flex items-start justify-between gap-3">
@@ -169,7 +155,6 @@ export default function JournalPage() {
           <Printer size={14} /> Generate {yearFilter}
         </button>
       </div>
-
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <div className="stat-card">
@@ -185,7 +170,6 @@ export default function JournalPage() {
           <div className="text-xs text-garden-400 mt-1">Today</div>
         </div>
       </div>
-
       {/* New Entry */}
       <div className="card">
         <h3 className="font-medium text-garden-900 mb-3">What happened in your garden today?</h3>
@@ -212,7 +196,6 @@ export default function JournalPage() {
           </button>
         </div>
       </div>
-
       {/* Year filter */}
       {availableYears.length > 0 && (
         <div className="flex gap-2 items-center">
@@ -229,7 +212,6 @@ export default function JournalPage() {
           </div>
         </div>
       )}
-
       {/* Entries */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
