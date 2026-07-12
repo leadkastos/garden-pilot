@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/AuthContext'
 import { checkFrostRisk } from '../../lib/frostCheck'
 
+const CHECKOUT_URL = 'https://realworldbusiness.co/garden-navi-176819'
+
 const SEED_SOURCES = [
   "Johnny's Seeds", "Burpee", "Baker Creek", "Home Depot",
   "Lowe's", "Local Garden Center", "Saved Seeds", "Gifted Seeds", "Other"
@@ -30,7 +32,7 @@ const CATEGORIES = [
 const STEPS = ['Plant Info', 'Seed Source', 'Planting', 'Location', 'Bed', 'Done']
 
 export default function AddPlantWizard({ onSave, onCancel }) {
-  const { user, profile } = useAuth()
+  const { user, profile, isReadOnly } = useAuth()
   const [step, setStep] = useState(0)
   const [beds, setBeds] = useState([])
   const [frostModal, setFrostModal] = useState(null)
@@ -97,6 +99,12 @@ export default function AddPlantWizard({ onSave, onCancel }) {
   const getEmoji = () => CATEGORIES.find(c => c.label === data.category)?.emoji || '🌱'
 
   const handleSave = () => {
+    if (isReadOnly) {
+      if (window.confirm('Your trial has ended. Subscribe to add new plants. Go to checkout now?')) {
+        window.location.href = CHECKOUT_URL
+      }
+      return
+    }
     const plant = {
       ...data,
       seedsPlanted: data.notPlantedYet ? 0 : (parseInt(data.seedsPlanted) || 0),
