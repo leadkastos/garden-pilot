@@ -2,24 +2,23 @@ import { useState, useEffect } from 'react'
 import { Plus, Grid3x3, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { useWriteGuard } from '../lib/useWriteGuard'
 import BedBuilder from '../components/beds/BedBuilder'
 import BedDiagram from '../components/beds/BedDiagram'
-
 export default function BedsPage() {
   const { user } = useAuth()
+  const guard = useWriteGuard()
   const [beds, setBeds] = useState([])
   const [unplacedPlants, setUnplacedPlants] = useState([])
   const [loading, setLoading] = useState(true)
   const [showBuilder, setShowBuilder] = useState(false)
   const [editingBed, setEditingBed] = useState(null)
   const [viewingBed, setViewingBed] = useState(null)
-
   useEffect(() => {
     if (!user) return
     fetchBeds()
     fetchUnplacedPlants()
   }, [user])
-
   const fetchBeds = async () => {
     setLoading(true)
     const { data, error } = await supabase
@@ -30,7 +29,6 @@ export default function BedsPage() {
     if (!error) setBeds(data || [])
     setLoading(false)
   }
-
   const fetchUnplacedPlants = async () => {
     const { data, error } = await supabase
       .from('plants')
@@ -39,7 +37,6 @@ export default function BedsPage() {
       .is('bed_id', null)
     if (!error) setUnplacedPlants(data || [])
   }
-
   // Write bed_id + bed name back to any tracked plants that were placed in this bed
   const linkPlantsToBed = async (bedId, bedName, plants) => {
     const trackedIds = (plants || [])
@@ -53,8 +50,8 @@ export default function BedsPage() {
       .eq('user_id', user.id)
     fetchUnplacedPlants()
   }
-
   const saveBed = async (bed) => {
+    if (!guard()) return
     if (bed.id && beds.find(b => b.id === bed.id)) {
       // Update existing
       const { data, error } = await supabase
@@ -96,8 +93,8 @@ export default function BedsPage() {
     setShowBuilder(false)
     setEditingBed(null)
   }
-
   const deleteBed = async (id) => {
+    if (!guard()) return
     if (!confirm('Delete this bed?')) return
     const { error } = await supabase
       .from('beds')
@@ -106,8 +103,8 @@ export default function BedsPage() {
       .eq('user_id', user.id)
     if (!error) setBeds(prev => prev.filter(b => b.id !== id))
   }
-
   const saveNotes = async (bedId, notes) => {
+    if (!guard()) return
     const { data } = await supabase
       .from('beds')
       .update({ notes, updated_at: new Date().toISOString() })
@@ -120,10 +117,8 @@ export default function BedsPage() {
       if (viewingBed?.id === bedId) setViewingBed(data)
     }
   }
-
   const totalPlants = beds.reduce((s, b) =>
     s + (b.plants || []).reduce((ps, p) => ps + (p.placed?.length || 0), 0), 0)
-
   if (showBuilder || editingBed) return (
     <BedBuilder
       bed={editingBed}
@@ -132,7 +127,6 @@ export default function BedsPage() {
       onCancel={() => { setShowBuilder(false); setEditingBed(null) }}
     />
   )
-
   if (viewingBed) return (
     <BedDiagram
       bed={viewingBed}
@@ -141,7 +135,6 @@ export default function BedsPage() {
       onSaveNotes={(notes) => saveNotes(viewingBed.id, notes)}
     />
   )
-
   return (
     <div className="space-y-5 pb-20">
       <div className="flex items-start justify-between gap-3">
@@ -184,7 +177,6 @@ export default function BedsPage() {
     </div>
   )
 }
-
 function BedCard({ bed, onView, onEdit, onDelete }) {
   const plants = bed.plants || []
   const totalPlaced = plants.reduce((s, p) => s + (p.placed?.length || 0), 0)
