@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabase'
 import { generateNotifications } from '../../lib/notifications'
+import ReadOnlyGate from './ReadOnlyGate'
 import {
   LayoutDashboard, Calendar, Leaf, Grid3x3, Receipt,
   BarChart3, Bell, ChevronDown, LogOut,
@@ -116,6 +117,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-parchment">
+      <ReadOnlyGate />
       {/* Top Nav — Deep Forest Green */}
       <nav className="sticky top-0 z-50 shadow-nav" style={{ backgroundColor: '#1e3d1a' }}>
         <div className="max-w-screen-xl mx-auto px-4 h-14 flex items-center justify-between">
