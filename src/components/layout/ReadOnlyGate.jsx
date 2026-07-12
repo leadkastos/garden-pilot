@@ -19,6 +19,13 @@ export default function ReadOnlyGate() {
     }
   }, [isReadOnly])
 
+  // Open the popup whenever a blocked write action fires the upgrade event.
+  useEffect(() => {
+    const handler = () => setShowPopup(true)
+    window.addEventListener('gn:show-upgrade', handler)
+    return () => window.removeEventListener('gn:show-upgrade', handler)
+  }, [])
+
   if (!isReadOnly) return null
 
   const messages = {
