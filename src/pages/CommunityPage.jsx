@@ -3,6 +3,7 @@ import { Plus, Search, Heart, MessageCircle, Flag, X, Camera, Send, AlertTriangl
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
 import { compressImage } from '../lib/imageCompress'
+import { useWriteGuard } from '../lib/useWriteGuard'
 const CATEGORIES = [
   { id: 'all',        label: 'All Posts',         emoji: '🌿' },
   { id: 'general',    label: 'General Gardening',  emoji: '🌱' },
@@ -18,6 +19,7 @@ const REPORT_REASONS = ['Inappropriate content', 'Spam or promotion', 'Harassmen
 const OWNER_UID = '4d7952c4-c796-435a-b319-4018eb16c410'
 export default function CommunityPage() {
   const { user, profile } = useAuth()
+  const guard = useWriteGuard()
   const [posts, setPosts] = useState([])
   const [activeCategory, setActiveCategory] = useState('all')
   const [search, setSearch] = useState('')
@@ -39,6 +41,7 @@ export default function CommunityPage() {
     setLoading(false)
   }
   const addPost = async (post) => {
+    if (!guard()) return
     const displayName = profile?.display_name || profile?.full_name || user?.email?.split('@')[0] || 'Gardener'
     const { data, error } = await supabase
       .from('community_posts')
@@ -59,6 +62,7 @@ export default function CommunityPage() {
     setShowNewPost(false)
   }
   const editPost = async (postId, changes) => {
+    if (!guard()) return
     const { data, error } = await supabase
       .from('community_posts')
       .update({
@@ -74,11 +78,13 @@ export default function CommunityPage() {
     if (!error && data) setPosts(prev => prev.map(p => p.id === postId ? data : p))
   }
   const deletePost = async (postId) => {
+    if (!guard()) return
     if (!confirm('Delete this post? This cannot be undone.')) return
     const { error } = await supabase.from('community_posts').delete().eq('id', postId)
     if (!error) setPosts(prev => prev.filter(p => p.id !== postId))
   }
   const deleteReply = async (postId, replyId) => {
+    if (!guard()) return
     const { error } = await supabase.from('community_replies').delete().eq('id', replyId)
     if (!error) {
       setPosts(prev => prev.map(p =>
@@ -89,6 +95,7 @@ export default function CommunityPage() {
     }
   }
   const toggleLike = async (postId) => {
+    if (!guard()) return
     // Check if already liked
     const { data: existing } = await supabase
       .from('post_likes')
@@ -109,6 +116,7 @@ export default function CommunityPage() {
     }
   }
   const addReply = async (postId, replyText, replyPhotoUrl, parentReplyId = null) => {
+    if (!guard()) return
     const displayName = profile?.display_name || profile?.full_name || user?.email?.split('@')[0] || 'Gardener'
     const { data, error } = await supabase
       .from('community_replies')
@@ -282,7 +290,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const cat = categories.find(c => c.id === post.category)
   const replies = post.community_replies || []
-
   const handleReplyPhoto = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -305,7 +312,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
       setReplyUploading(false)
     }
   }
-
   const handleReply = () => {
     if (!replyText.trim() && !replyPhoto) return
     onReply(replyText.trim(), replyPhoto, replyingTo)
@@ -396,7 +402,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
           </div>
           <input className="input-field text-sm" value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="Title" />
           <textarea className="input-field text-sm resize-none" rows={4} value={editText} onChange={e => setEditText(e.target.value)} placeholder="Post" />
-
           {/* Image edit controls */}
           {editPhoto ? (
             <div className="relative inline-block">
@@ -422,7 +427,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
               <input type="file" accept="image/*" className="hidden" onChange={handleEditPhoto} disabled={editPhotoUploading} />
             </label>
           )}
-
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)} className="btn-secondary flex-1 justify-center py-2 text-sm">Cancel</button>
             <button onClick={saveEdit} disabled={!editTitle.trim() || !editText.trim()}
@@ -504,7 +508,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
                     {replyingTo === reply.id ? 'Cancel' : 'Reply'}
                   </button>
                 </div>
-
                 {/* Nested replies to this comment */}
                 {children.length > 0 && (
                   <div className="mt-2 ml-5 space-y-2 pl-3 border-l-2 border-garden-100">
@@ -533,7 +536,6 @@ function PostCard({ post, isExpanded, onToggleExpand, onLike, onReply, onReport,
                     ))}
                   </div>
                 )}
-
                 {/* Inline reply box when replying to this comment */}
                 {replyingTo === reply.id && (
                   <div className="mt-2 ml-5 flex gap-2 items-center">
@@ -588,12 +590,10 @@ function NewPostModal({ categories, onSave, onClose, userId }) {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
   const [saving, setSaving] = useState(false)
-
   const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadError('')
-
     // Basic guardrails
     if (!file.type.startsWith('image/')) {
       setUploadError('Please choose an image file.')
@@ -603,7 +603,6 @@ function NewPostModal({ categories, onSave, onClose, userId }) {
       setUploadError('Image must be under 10MB.')
       return
     }
-
     setUploading(true)
     try {
       const compressed = await compressImage(file)
@@ -620,14 +619,12 @@ function NewPostModal({ categories, onSave, onClose, userId }) {
       setUploading(false)
     }
   }
-
   const handleSave = async () => {
     if (!title.trim() || !text.trim()) return
     setSaving(true)
     await onSave({ title, text, category, location, photo_url: photoUrl })
     setSaving(false)
   }
-
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:px-4">
       <div className="bg-white rounded-t-3xl sm:rounded-2xl w-full sm:max-w-lg shadow-xl max-h-[90vh] flex flex-col">
@@ -665,7 +662,6 @@ function NewPostModal({ categories, onSave, onClose, userId }) {
             <label className="block text-sm font-medium text-garden-700 mb-1.5">Location <span className="text-garden-400 font-normal">(optional)</span></label>
             <input className="input-field text-sm" placeholder="e.g. Nashville, TN" value={location} onChange={e => setLocation(e.target.value)} />
           </div>
-
           {/* Photo upload */}
           <div>
             <label className="block text-sm font-medium text-garden-700 mb-1.5">Photo <span className="text-garden-400 font-normal">(optional)</span></label>
