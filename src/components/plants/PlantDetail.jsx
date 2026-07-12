@@ -7,6 +7,7 @@ import {
 import { supabase } from '../../lib/supabase'
 import { compressImage } from '../../lib/imageCompress'
 import { checkFrostRisk } from '../../lib/frostCheck'
+import { useWriteGuard } from '../../lib/useWriteGuard'
 const QUICK_ACTIONS = [
   { id: 'watered',    label: 'I Watered',           emoji: '💧' },
   { id: 'sprouted',   label: 'Seeds Sprouted',       emoji: '🌱' },
@@ -49,6 +50,7 @@ function stampToInputValue(stamp) {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusColors }) {
+  const guard = useWriteGuard()
   const [showTodayModal, setShowTodayModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showHarvestModal, setShowHarvestModal] = useState(false)
@@ -135,6 +137,7 @@ export default function PlantDetail({ plant, onBack, onUpdate, onDelete, statusC
   const handlePhotoSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!guard()) { e.target.value = ''; return }
     setPhotoError('')
     if (!file.type.startsWith('image/')) {
       setPhotoError('Please choose an image file.')
@@ -631,7 +634,6 @@ function EditPlantForm({ plant, onSave, onCancel }) {
   const [seedsPlanted, setSeedsPlanted] = useState(plant.seedsPlanted ?? plant.seeds_planted ?? '')
   const [daysToMaturity, setDaysToMaturity] = useState(plant.daysToMaturity ?? plant.days_to_maturity ?? '')
   const [productionWeeks, setProductionWeeks] = useState(plant.productionWeeks ?? plant.production_weeks ?? '')
-
   const save = () => {
     if (!name.trim()) return
     onSave({
@@ -645,7 +647,6 @@ function EditPlantForm({ plant, onSave, onCancel }) {
       productionWeeks: parseInt(productionWeeks) || null,
     })
   }
-
   return (
     <>
       <div className="px-5 py-4 overflow-y-auto flex-1 space-y-3">
