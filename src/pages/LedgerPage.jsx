@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react'
 import { Plus, TrendingDown, TrendingUp, DollarSign, ShoppingBag } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/AuthContext'
+import { useWriteGuard } from '../lib/useWriteGuard'
 import AddExpenseModal from '../components/ledger/AddExpenseModal'
 import AddRevenueModal from '../components/ledger/AddRevenueModal'
 import LedgerEntry from '../components/ledger/LedgerEntry'
-
 const TABS = ['All', 'Expenses', 'Revenue']
-
 export default function LedgerPage() {
   const { user } = useAuth()
+  const guard = useWriteGuard()
   const [expenses, setExpenses] = useState([])
   const [revenue, setRevenue] = useState([])
   const [trackedExpenses, setTrackedExpenses] = useState([])
@@ -18,12 +18,10 @@ export default function LedgerPage() {
   const [showRevenueModal, setShowRevenueModal] = useState(false)
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString())
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
     if (!user) return
     fetchAll()
   }, [user])
-
   const fetchAll = async () => {
     setLoading(true)
     const [expRes, revRes] = await Promise.all([
@@ -37,8 +35,8 @@ export default function LedgerPage() {
     setTrackedExpenses(tracked)
     setLoading(false)
   }
-
   const addExpense = async (expense) => {
+    if (!guard()) return
     const { data, error } = await supabase
       .from('expenses')
       .insert({
@@ -57,8 +55,8 @@ export default function LedgerPage() {
     if (!error && data) setExpenses(prev => [data, ...prev])
     setShowExpenseModal(false)
   }
-
   const addRevenue = async (rev) => {
+    if (!guard()) return
     const { data, error } = await supabase
       .from('revenue')
       .insert({
@@ -76,18 +74,18 @@ export default function LedgerPage() {
     if (!error && data) setRevenue(prev => [data, ...prev])
     setShowRevenueModal(false)
   }
-
   const deleteExpense = async (id) => {
+    if (!guard()) return
     await supabase.from('expenses').delete().eq('id', id).eq('user_id', user.id)
     setExpenses(prev => prev.filter(e => e.id !== id))
   }
-
   const deleteRevenue = async (id) => {
+    if (!guard()) return
     await supabase.from('revenue').delete().eq('id', id).eq('user_id', user.id)
     setRevenue(prev => prev.filter(r => r.id !== id))
   }
-
   const handleImportToPlants = async (expense) => {
+    if (!guard()) return
     // Add to plants table
     await supabase.from('plants').insert({
       user_id: user.id,
@@ -111,23 +109,18 @@ export default function LedgerPage() {
     setTrackedExpenses(prev => [...prev, expense.id])
     setExpenses(prev => prev.map(e => e.id === expense.id ? { ...e, tracked_in_plants: true } : e))
   }
-
   const filteredExpenses = expenses.filter(e => e.date?.startsWith(yearFilter))
   const filteredRevenue = revenue.filter(r => r.date?.startsWith(yearFilter))
-
   const totalSpent = filteredExpenses.reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
   const totalRevenue = filteredRevenue.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
   const netCost = totalSpent - totalRevenue
-
   const seedSpend = filteredExpenses.filter(e => e.category === 'Plants & Seeds').reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
   const supplySpend = filteredExpenses.filter(e => e.category === 'Supplies').reduce((s, e) => s + (parseFloat(e.cost) || 0), 0)
-
   const availableYears = [...new Set([
     ...expenses.map(e => e.date?.slice(0,4)),
     ...revenue.map(r => r.date?.slice(0,4)),
     new Date().getFullYear().toString()
   ])].filter(Boolean).sort().reverse()
-
   return (
     <div className="space-y-5 pb-20">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -144,7 +137,6 @@ export default function LedgerPage() {
           </button>
         </div>
       </div>
-
       {/* Year filter */}
       <div className="flex gap-2 items-center">
         <span className="text-xs text-garden-500 font-medium">Year:</span>
@@ -159,7 +151,6 @@ export default function LedgerPage() {
           ))}
         </div>
       </div>
-
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
         <div className="card text-center">
@@ -184,7 +175,6 @@ export default function LedgerPage() {
           <div className="text-xs text-garden-400 mt-1">{netCost > 0 ? 'Net cost' : 'Net profit'}</div>
         </div>
       </div>
-
       {/* Spend breakdown */}
       {totalSpent > 0 && (
         <div className="card">
@@ -208,7 +198,6 @@ export default function LedgerPage() {
           </div>
         </div>
       )}
-
       {/* Tabs */}
       <div className="flex gap-2">
         {TABS.map(tab => (
@@ -222,7 +211,6 @@ export default function LedgerPage() {
           </button>
         ))}
       </div>
-
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-2 border-garden-500 border-t-transparent rounded-full animate-spin" />
@@ -254,7 +242,6 @@ export default function LedgerPage() {
               )}
             </div>
           )}
-
           {(activeTab === 'All' || activeTab === 'Revenue') && (
             <div className="space-y-2">
               {activeTab === 'All' && filteredRevenue.length > 0 && (
@@ -278,7 +265,6 @@ export default function LedgerPage() {
               )}
             </div>
           )}
-
           {activeTab === 'All' && filteredExpenses.length === 0 && filteredRevenue.length === 0 && (
             <div className="card text-center py-16">
               <div className="w-16 h-16 bg-garden-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -294,7 +280,6 @@ export default function LedgerPage() {
           )}
         </>
       )}
-
       {showExpenseModal && <AddExpenseModal onSave={addExpense} onClose={() => setShowExpenseModal(false)} />}
       {showRevenueModal && <AddRevenueModal onSave={addRevenue} onClose={() => setShowRevenueModal(false)} />}
     </div>
