@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
+import { useWriteGuard } from '../lib/useWriteGuard'
 import { User, MapPin, Mail, Leaf, Flower2, Sprout, Pencil, Check, X, Loader2, Camera } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { compressImage } from '../lib/imageCompress'
 import { estimateFrostDates, formatFrost } from '../lib/frostDates'
 export default function ProfilePage() {
   const { profile, user, refreshProfile } = useAuth()
+  const guard = useWriteGuard()
   const [editing, setEditing] = useState(false)
   const [fullName, setFullName] = useState(profile?.full_name || '')
   const [displayName, setDisplayName] = useState(profile?.display_name || '')
@@ -22,9 +24,7 @@ export default function ProfilePage() {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelDone, setCancelDone] = useState(false)
   const [cancelling, setCancelling] = useState(false)
-
   const initials = (profile?.display_name || profile?.full_name)?.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) || 'GP'
-
   const startEdit = () => {
     setFullName(profile?.full_name || '')
     setDisplayName(profile?.display_name || '')
@@ -36,7 +36,6 @@ export default function ProfilePage() {
     setError('')
     setEditing(true)
   }
-
   const handleAvatarSelect = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -59,8 +58,8 @@ export default function ProfilePage() {
       setAvatarUploading(false)
     }
   }
-
   const handleSave = async () => {
+    if (!guard()) return
     setError('')
     if (!fullName.trim()) {
       setError('Please enter your name.')
@@ -92,7 +91,6 @@ export default function ProfilePage() {
     setSavedMsg(true)
     setTimeout(() => setSavedMsg(false), 2500)
   }
-
   const handleCancelSubscription = async () => {
     setCancelling(true)
     const isAnnual = (profile?.plan || '').toLowerCase().includes('year') || (profile?.plan || '').toLowerCase().includes('annual')
@@ -118,21 +116,18 @@ export default function ProfilePage() {
     setCancelling(false)
     setCancelDone(true)
   }
-
   return (
     <div className="max-w-2xl space-y-5">
       <div>
         <h1 className="font-display text-3xl font-semibold text-garden-900">My profile</h1>
         <p className="text-garden-500 text-sm mt-1">Manage your account and garden trackers</p>
       </div>
-
       {savedMsg && (
         <div className="card bg-garden-50 border-garden-200 flex items-center gap-2 py-3">
           <Check size={16} className="text-garden-600" />
           <span className="text-sm text-garden-700 font-medium">Profile updated</span>
         </div>
       )}
-
       {/* Profile card */}
       {!editing ? (
         <div className="card">
@@ -172,7 +167,6 @@ export default function ProfilePage() {
               <X size={18} />
             </button>
           </div>
-
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 rounded-2xl bg-garden-600 flex items-center justify-center text-white text-2xl font-display font-semibold flex-shrink-0 overflow-hidden">
               {avatarUrl
@@ -193,13 +187,11 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
-
           <div>
             <label className="block text-sm font-medium text-garden-700 mb-1.5">Full name</label>
             <input className="input-field" placeholder="Your name"
               value={fullName} onChange={e => setFullName(e.target.value)} />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-garden-700 mb-1.5">
               Community display name <span className="text-garden-400 font-normal">(shown on your posts)</span>
@@ -208,7 +200,6 @@ export default function ProfilePage() {
               value={displayName} onChange={e => setDisplayName(e.target.value)} />
             <p className="text-xs text-garden-400 mt-1">Leave blank to use your first name.</p>
           </div>
-
           <div>
             <label className="block text-sm font-medium text-garden-700 mb-1.5">
               Location <span className="text-garden-400 font-normal">(optional)</span>
@@ -216,7 +207,6 @@ export default function ProfilePage() {
             <input className="input-field" placeholder="e.g. Franklin, TN"
               value={location} onChange={e => setLocation(e.target.value)} />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-garden-700 mb-1.5">
               Zip code
@@ -237,7 +227,6 @@ export default function ProfilePage() {
               🌱 We use your zip code to look up your local frost dates. This lets Garden Navi warn you if a plant won't have enough time to mature and produce before the first frost — so you plant at the right time.
             </p>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-garden-700 mb-1.5">Last spring frost</label>
@@ -253,11 +242,9 @@ export default function ProfilePage() {
               Estimated from your zip — edit if you know your local dates. Format: MM-DD (month-day).
             </p>
           </div>
-
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{error}</p>
           )}
-
           <div className="flex gap-3 pt-1">
             <button onClick={() => setEditing(false)} className="btn-secondary flex-1 justify-center py-2.5 text-sm">
               Cancel
@@ -269,7 +256,6 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
-
       {/* Trackers */}
       <div className="card">
         <h3 className="section-title">My trackers</h3>
@@ -308,7 +294,6 @@ export default function ProfilePage() {
           )}
         </div>
       )}
-
       {/* Cancel confirmation modal */}
       {showCancelModal && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center px-4">
