@@ -62,6 +62,7 @@ export async function generateNotifications(userId, profile) {
 
   // 0.5 Trial-ending nudge — fires daily from 3 days before trial end through the 3-day grace period.
   // Keyed by date so it re-fires once per day (same pattern as the zip nudge).
+  // Uses type 'upgrade' so the bell makes it clickable → checkout page.
   if (profile?.subscription_status === 'trial' && profile?.trial_ends_at) {
     const end = new Date(profile.trial_ends_at)
     if (!isNaN(end)) {
@@ -72,21 +73,21 @@ export async function generateNotifications(userId, profile) {
         let title, body
         if (daysLeft > 1) {
           title = `Your free trial ends in ${daysLeft} days`
-          body = 'Subscribe now to keep full access to your garden — add plants, log harvests, and keep growing.'
+          body = 'Subscribe now to keep full access — add plants, log harvests, and keep growing. Tap here to subscribe.'
         } else if (daysLeft === 1) {
           title = 'Your free trial ends tomorrow'
-          body = 'Subscribe to keep full access. Your garden data stays saved either way.'
+          body = 'Subscribe to keep full access. Tap here to subscribe.'
         } else if (daysLeft === 0) {
           title = 'Your free trial ends today'
-          body = 'Subscribe now to avoid losing the ability to add or edit. Tap to subscribe.'
+          body = 'Subscribe now to avoid losing the ability to add or edit. Tap here to subscribe.'
         } else {
           // grace period (daysLeft -1 to -3)
           title = 'Your trial has ended — grace period active'
-          body = 'You still have full access for a few more days. Subscribe now to keep it.'
+          body = 'You still have full access for a few more days. Tap here to subscribe.'
         }
         desired.push({
           key: `trial-ending-${todayISO()}`,
-          type: 'task',
+          type: 'upgrade',
           title,
           body,
         })
