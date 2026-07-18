@@ -10,6 +10,8 @@ import {
   User, X, BookOpen, Users, Menu, Trash2
 } from 'lucide-react'
 
+const CHECKOUT_URL = 'https://realworldbusiness.co/garden-navi-176819'
+
 const navItems = [
   { to: '/',          label: 'Dashboard',    icon: LayoutDashboard, end: true },
   { to: '/calendar',  label: 'Calendar',     icon: Calendar },
@@ -86,6 +88,17 @@ export default function Layout() {
     }
   }
 
+  // Route a notification to the right place when tapped, based on its type.
+  const handleNotifClick = (n) => {
+    if (n.type === 'zip') {
+      setShowNotifs(false)
+      navigate('/profile')
+    } else if (n.type === 'upgrade') {
+      setShowNotifs(false)
+      window.location.href = CHECKOUT_URL
+    }
+  }
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     navigate('/login')
@@ -98,6 +111,7 @@ export default function Layout() {
     if (type === 'season') return '🍂'
     if (type === 'reply') return '💬'
     if (type === 'zip') return '📍'
+    if (type === 'upgrade') return '⏳'
     if (type === 'plant') return '🌱'
     if (type === 'harvest') return '🥕'
     if (type === 'task')  return '✅'
@@ -179,8 +193,8 @@ export default function Layout() {
                         <p className="text-sm text-garden-400">You're all caught up 🌱</p>
                       </div>
                     ) : notifs.map(n => (
-                      <div key={n.id} className={`px-4 py-3 hover:bg-garden-50 transition-colors group ${!n.read ? 'bg-garden-50/50' : ''} ${n.type === 'zip' ? 'cursor-pointer' : ''}`}
-                        onClick={n.type === 'zip' ? () => { setShowNotifs(false); navigate('/profile') } : undefined}>
+                      <div key={n.id} className={`px-4 py-3 hover:bg-garden-50 transition-colors group ${!n.read ? 'bg-garden-50/50' : ''} ${(n.type === 'zip' || n.type === 'upgrade') ? 'cursor-pointer' : ''}`}
+                        onClick={(n.type === 'zip' || n.type === 'upgrade') ? () => handleNotifClick(n) : undefined}>
                         <div className="flex gap-3">
                           <span className="text-base mt-0.5">{notifIcon(n.type)}</span>
                           <div className="flex-1 min-w-0">
@@ -199,6 +213,9 @@ export default function Layout() {
                             <p className="text-[11px] text-garden-400 mt-1">{timeAgo(n.created_at)}</p>
                             {n.type === 'zip' && (
                               <p className="text-[11px] text-garden-700 font-medium mt-1">Tap to add your zip →</p>
+                            )}
+                            {n.type === 'upgrade' && (
+                              <p className="text-[11px] text-garden-700 font-medium mt-1">Tap to subscribe →</p>
                             )}
                           </div>
                         </div>
