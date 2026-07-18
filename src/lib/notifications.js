@@ -60,6 +60,40 @@ export async function generateNotifications(userId, profile) {
     })
   }
 
+  // 0.5 Trial-ending nudge — fires daily from 3 days before trial end through the 3-day grace period.
+  // Keyed by date so it re-fires once per day (same pattern as the zip nudge).
+  if (profile?.subscription_status === 'trial' && profile?.trial_ends_at) {
+    const end = new Date(profile.trial_ends_at)
+    if (!isNaN(end)) {
+      const msPerDay = 86400000
+      const daysLeft = Math.ceil((end.getTime() - Date.now()) / msPerDay)
+      // Window: 3 days before trial end (daysLeft <= 3) through 3-day grace (daysLeft >= -3)
+      if (daysLeft <= 3 && daysLeft >= -3) {
+        let title, body
+        if (daysLeft > 1) {
+          title = `Your free trial ends in ${daysLeft} days`
+          body = 'Subscribe now to keep full access to your garden — add plants, log harvests, and keep growing.'
+        } else if (daysLeft === 1) {
+          title = 'Your free trial ends tomorrow'
+          body = 'Subscribe to keep full access. Your garden data stays saved either way.'
+        } else if (daysLeft === 0) {
+          title = 'Your free trial ends today'
+          body = 'Subscribe now to avoid losing the ability to add or edit. Tap to subscribe.'
+        } else {
+          // grace period (daysLeft -1 to -3)
+          title = 'Your trial has ended — grace period active'
+          body = 'You still have full access for a few more days. Subscribe now to keep it.'
+        }
+        desired.push({
+          key: `trial-ending-${todayISO()}`,
+          type: 'task',
+          title,
+          body,
+        })
+      }
+    }
+  }
+
   // 1. Frost-timing warnings — only for recently-added plants (decision still actionable)
   const now = Date.now()
   const RECENT_MS = 14 * 86400000
