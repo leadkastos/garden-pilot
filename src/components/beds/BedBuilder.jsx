@@ -497,7 +497,7 @@ export default function BedBuilder({ bed, unplacedPlants = [], onSave, onCancel 
         />
       )}
       {/* Bottom nav */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-garden-100 px-4 py-3 flex gap-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-garden-100 px-4 py-3 flex gap-3 max-w-3xl mx-auto">
         {step > 0 && (
           <button onClick={() => setStep(s => s - 1)} className="btn-secondary flex-shrink-0 px-4">← Back</button>
         )}
