@@ -246,8 +246,8 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
       </div>
       {/* NOTES MODAL */}
       {showNotes && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white rounded-t-3xl w-full max-h-[85vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+          <div className="bg-white rounded-t-3xl w-full max-w-2xl max-h-[85vh] flex flex-col">
             <div className="px-5 pt-5 pb-3 border-b border-garden-100 flex-shrink-0">
               <div className="flex items-center justify-between mb-4">
                 <div>
