@@ -5,6 +5,10 @@ import { useAuth } from '../lib/AuthContext'
 import { useWriteGuard } from '../lib/useWriteGuard'
 import BedBuilder from '../components/beds/BedBuilder'
 import BedDiagram from '../components/beds/BedDiagram'
+
+// Shared dirt-cell look used across all bed views
+const SOIL_BG = 'linear-gradient(145deg, #6b4e2e 0%, #5a3f24 50%, #4a3319 100%)'
+
 export default function BedsPage() {
   const { user } = useAuth()
   const guard = useWriteGuard()
@@ -206,18 +210,20 @@ function BedCard({ bed, onView, onEdit, onDelete }) {
           </button>
         </div>
       </div>
-      <div className="bg-garden-50 rounded-xl p-3 mb-3 border border-garden-100 cursor-pointer" onClick={onView}>
+      <div className="rounded-xl p-3 mb-3 cursor-pointer" onClick={onView}
+        style={{ background: SOIL_BG, border: '2px solid #4a3319' }}>
         <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
           {grid.map((row, ri) =>
             row.map((cell, ci) => (
               <div key={`${ri}-${ci}`}
-                className="aspect-square rounded flex items-center justify-center text-xs bg-white border border-garden-100">
+                className="aspect-square rounded flex items-center justify-center text-base"
+                style={{ background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.15)' }}>
                 {cell || ''}
               </div>
             ))
           )}
         </div>
-        <p className="text-center text-xs text-garden-400 mt-2">Click to view full diagram</p>
+        <p className="text-center text-xs mt-2" style={{ color: 'rgba(255,255,255,0.85)' }}>Click to view full diagram</p>
       </div>
       <div className="flex flex-wrap gap-1.5 mb-3">
         {plants.filter(p => (p.placed?.length || 0) > 0).map(p => (
