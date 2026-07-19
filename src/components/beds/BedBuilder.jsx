@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ArrowLeft, Plus, Trash2, Check, X, Search, Sprout } from 'lucide-react'
 
 // Shared dirt-cell look used across all bed views
-const SOIL_BG = 'linear-gradient(145deg, #6b4e2e 0%, #5a3f24 50%, #4a3319 100%)'
+const SOIL_BG = 'radial-gradient(circle at 15% 25%, rgba(0,0,0,0.28) 0.5px, transparent 1.5px), radial-gradient(circle at 45% 65%, rgba(0,0,0,0.22) 0.5px, transparent 1.5px), radial-gradient(circle at 75% 35%, rgba(255,255,255,0.06) 0.5px, transparent 1.5px), radial-gradient(circle at 30% 80%, rgba(0,0,0,0.25) 0.5px, transparent 1.5px), radial-gradient(circle at 85% 75%, rgba(120,72,40,0.3) 1px, transparent 2px), radial-gradient(circle at 55% 15%, rgba(90,55,30,0.35) 1px, transparent 2px), linear-gradient(145deg, #6b4a2a 0%, #5a3d22 45%, #4d3319 100%)'
 
 // ─── COMPREHENSIVE PLANT LIBRARY ───────────────────────────────────────────
 const PLANT_CATEGORIES = {
