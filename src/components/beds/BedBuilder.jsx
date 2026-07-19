@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { ArrowLeft, Plus, Trash2, Check, X, Search, Sprout } from 'lucide-react'
+
+// Shared dirt-cell look used across all bed views
+const SOIL_BG = 'linear-gradient(145deg, #6b4e2e 0%, #5a3f24 50%, #4a3319 100%)'
+
 // ─── COMPREHENSIVE PLANT LIBRARY ───────────────────────────────────────────
 const PLANT_CATEGORIES = {
   'Vegetables': [
@@ -402,8 +406,8 @@ export default function BedBuilder({ bed, unplacedPlants = [], onSave, onCancel 
                 </div>
                 <div className="overflow-x-auto">
                   <div className="inline-block">
-                    <div className="grid border-2 border-soil-400 rounded-xl overflow-hidden bg-garden-50"
-                      style={{ gridTemplateColumns: `repeat(${cols}, minmax(32px, 1fr))`, minWidth: `${cols * 36}px` }}>
+                    <div className="grid border-2 rounded-xl overflow-hidden"
+                      style={{ gridTemplateColumns: `repeat(${cols}, minmax(32px, 1fr))`, minWidth: `${cols * 36}px`, borderColor: '#4a3319' }}>
                       {Array(rows).fill(null).map((_, ri) =>
                         Array(cols).fill(null).map((__, ci) => {
                           const cell = grid[ri]?.[ci]
@@ -424,13 +428,18 @@ export default function BedBuilder({ bed, unplacedPlants = [], onSave, onCancel 
                           }
                           return (
                             <div key={`${ri}-${ci}`}
-                              className={`relative flex items-center justify-center border border-garden-200 transition-all
-                                ${isOver ? 'bg-garden-200' : ''}
-                                ${isMobile && selectedPlant && !cell ? 'bg-garden-50 active:bg-garden-200 cursor-pointer' : ''}
+                              className={`relative flex items-center justify-center transition-all
+                                ${isMobile && selectedPlant && !cell ? 'cursor-pointer' : ''}
                                 ${isMobile && cell ? 'cursor-pointer' : ''}
-                                ${!isMobile && !cell ? 'bg-white hover:bg-garden-50 cursor-crosshair' : ''}
-                                ${!isMobile && cell ? 'bg-white cursor-move' : ''}`}
-                              style={{ width: isMobile ? 40 : 36, height: isMobile ? 40 : 36 }}
+                                ${!isMobile && !cell ? 'cursor-crosshair' : ''}
+                                ${!isMobile && cell ? 'cursor-move' : ''}`}
+                              style={{
+                                width: isMobile ? 40 : 36,
+                                height: isMobile ? 40 : 36,
+                                background: isOver ? '#3d6b34' : SOIL_BG,
+                                borderRight: '1px solid rgba(0,0,0,0.18)',
+                                borderBottom: '1px solid rgba(0,0,0,0.18)',
+                              }}
                               onClick={handleCellTap}
                               onDragOver={!isMobile ? e => { e.preventDefault(); setDragOver({ row: ri, col: ci }) } : undefined}
                               onDragLeave={!isMobile ? () => setDragOver(null) : undefined}
@@ -438,7 +447,7 @@ export default function BedBuilder({ bed, unplacedPlants = [], onSave, onCancel 
                               {cell && (
                                 <div draggable={!isMobile}
                                   onDragStart={!isMobile ? () => setDragging({ plantId: cell.id, fromPos: { row: ri, col: ci } }) : undefined}
-                                  className="text-xl select-none leading-none">{cell.emoji}</div>
+                                  className="text-2xl select-none leading-none">{cell.emoji}</div>
                               )}
                               {cell && !isMobile && (
                                 <button onClick={() => removeFromCell(ri, ci)}
