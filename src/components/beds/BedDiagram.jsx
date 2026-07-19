@@ -1,14 +1,15 @@
 import { useRef, useState, useEffect } from 'react'
 import { ArrowLeft, Printer, Pencil, Plus, X, BookOpen } from 'lucide-react'
 
+// Shared dirt-cell look used across all bed views
+const SOIL_BG = 'linear-gradient(145deg, #6b4e2e 0%, #5a3f24 50%, #4a3319 100%)'
+
 export default function BedDiagram({ bed, onBack, onEdit }) {
   const printRef = useRef()
   const [notes, setNotes] = useState([])
   const [newNote, setNewNote] = useState('')
   const [showNotes, setShowNotes] = useState(false)
-
   const storageKey = `gardenpilot_bed_notes_${bed.id}`
-
   // Load notes from localStorage
   useEffect(() => {
     try {
@@ -16,14 +17,12 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
       if (saved) setNotes(JSON.parse(saved))
     } catch (e) { console.error('Error loading notes:', e) }
   }, [bed.id])
-
   // Save notes to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(storageKey, JSON.stringify(notes))
     } catch (e) { console.error('Error saving notes:', e) }
   }, [notes])
-
   const saveNote = () => {
     if (!newNote.trim()) return
     const now = new Date()
@@ -33,14 +32,11 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
     setNotes(prev => [note, ...prev])
     setNewNote('')
   }
-
   const deleteNote = (id) => {
     setNotes(prev => prev.filter(n => n.id !== id))
   }
-
   const cols = Math.min(bed.length * 2, 24)
   const rows = Math.min(bed.width * 2, 16)
-
   const grid = Array(rows).fill(null).map(() => Array(cols).fill(null))
   bed.plants.forEach(plant => {
     plant.placed?.forEach(pos => {
@@ -49,9 +45,7 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
       }
     })
   })
-
   const totalPlants = bed.plants.reduce((s, p) => s + p.placed.length, 0)
-
   const handlePrint = () => {
     const printWindow = window.open('', '_blank')
     const notesHTML = notes.length > 0 ? `
@@ -65,12 +59,11 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
         `).join('')}
       </div>
     ` : ''
-
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${bed.name} — Garden Pilot</title>
+          <title>${bed.name} — Garden Navi</title>
           <style>
             * { box-sizing: border-box; margin: 0; padding: 0; }
             body { font-family: 'Georgia', serif; padding: 32px; color: #1a3a17; background: white; }
@@ -78,9 +71,8 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
             .print-header h1 { font-size: 28px; color: #2d5a27; margin-bottom: 4px; }
             .print-header p { font-size: 14px; color: #6a8a65; }
             .grid-wrap { display: flex; justify-content: center; margin: 24px 0; }
-            .bed-grid { border: 3px solid #8B6914; border-radius: 8px; overflow: hidden; background: #f9f5f0; display: inline-grid; }
-            .grid-cell { width: 48px; height: 48px; border: 1px solid #d4c4a0; display: flex; align-items: center; justify-content: center; font-size: 24px; background: white; }
-            .grid-cell.empty { background: #fdf8f0; }
+            .bed-grid { border: 3px solid #4a3319; border-radius: 8px; overflow: hidden; display: inline-grid; }
+            .grid-cell { width: 48px; height: 48px; border: 1px solid #3a2814; display: flex; align-items: center; justify-content: center; font-size: 34px; background: linear-gradient(145deg, #6b4e2e 0%, #5a3f24 50%, #4a3319 100%); }
             .dimension-label { text-align: center; font-size: 12px; color: #6a8a65; margin-top: 8px; }
             .legend { margin-top: 24px; padding: 16px; border: 1px solid #c8e0c3; border-radius: 8px; background: #f4f9f1; }
             .legend h3 { font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #2d5a27; }
@@ -115,7 +107,7 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
             <div>
               <div class="bed-grid" style="grid-template-columns: repeat(${cols}, 48px)">
                 ${grid.map(row => row.map(cell =>
-                  `<div class="grid-cell ${cell ? '' : 'empty'}">${cell ? cell.emoji : ''}</div>`
+                  `<div class="grid-cell">${cell ? cell.emoji : ''}</div>`
                 ).join('')).join('')}
               </div>
               <div class="dimension-label">← ${bed.length} feet wide · ${bed.width} feet deep ↕</div>
@@ -131,7 +123,7 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
           </div>
           ${notesHTML}
           <div class="footer">
-            Garden Pilot · TheGardenPilot.com · Your smart guide to a better garden
+            Garden Navi · GardenNavi.com · Your smart guide to a better garden
           </div>
         </body>
       </html>
@@ -140,7 +132,6 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
     printWindow.focus()
     setTimeout(() => { printWindow.print(); printWindow.close() }, 500)
   }
-
   return (
     <div className="min-h-screen bg-parchment pb-20">
       {/* Header */}
@@ -169,9 +160,7 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
           </div>
         </div>
       </div>
-
       <div className="px-4 py-5 max-w-4xl mx-auto space-y-5" ref={printRef}>
-
         {/* Stats */}
         <div className="grid grid-cols-4 gap-3">
           {[
@@ -186,7 +175,6 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
             </div>
           ))}
         </div>
-
         {/* Full Bed Diagram */}
         <div className="card overflow-x-auto">
           <div className="flex items-center justify-between mb-3">
@@ -195,14 +183,14 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
           </div>
           <div className="overflow-x-auto">
             <div className="inline-block">
-              <div className="grid border-2 border-soil-400 rounded-xl overflow-hidden"
-                style={{ gridTemplateColumns: `repeat(${cols}, minmax(40px, 1fr))`, minWidth: `${cols * 44}px`, background: '#f9f5f0' }}>
+              <div className="grid border-2 rounded-xl overflow-hidden"
+                style={{ gridTemplateColumns: `repeat(${cols}, minmax(40px, 1fr))`, minWidth: `${cols * 44}px`, borderColor: '#4a3319' }}>
                 {grid.map((row, ri) =>
                   row.map((cell, ci) => (
                     <div key={`${ri}-${ci}`}
-                      className={`flex items-center justify-center border border-garden-200 ${cell ? 'bg-white' : 'bg-garden-50/50'}`}
-                      style={{ width: 44, height: 44 }}>
-                      {cell && <span className="text-2xl select-none">{cell.emoji}</span>}
+                      className="flex items-center justify-center"
+                      style={{ width: 44, height: 44, background: SOIL_BG, borderRight: '1px solid rgba(0,0,0,0.18)', borderBottom: '1px solid rgba(0,0,0,0.18)' }}>
+                      {cell && <span className="text-3xl select-none">{cell.emoji}</span>}
                     </div>
                   ))
                 )}
@@ -214,7 +202,6 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
             </div>
           </div>
         </div>
-
         {/* Legend */}
         {bed.plants.some(p => p.placed.length > 0) && (
           <div className="card">
@@ -232,7 +219,6 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
             </div>
           </div>
         )}
-
         {/* Recent notes preview */}
         {notes.length > 0 && (
           <div className="card">
@@ -253,13 +239,11 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
             </div>
           </div>
         )}
-
         {/* Print button */}
         <button onClick={handlePrint} className="w-full btn-secondary justify-center py-3">
           <Printer size={16} /> Print this bed layout
         </button>
       </div>
-
       {/* NOTES MODAL */}
       {showNotes && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
@@ -274,7 +258,6 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
                   <X size={20} className="text-garden-400" />
                 </button>
               </div>
-
               {/* Add note input */}
               <div className="space-y-2">
                 <textarea
@@ -293,7 +276,6 @@ export default function BedDiagram({ bed, onBack, onEdit }) {
                 </button>
               </div>
             </div>
-
             {/* Notes log */}
             <div className="overflow-y-auto flex-1 px-5 py-4">
               {notes.length === 0 ? (
